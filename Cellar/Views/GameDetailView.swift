@@ -23,9 +23,11 @@ struct GameDetailView: View {
 
     private var hero: some View {
         ZStack(alignment: .bottomLeading) {
-            ArtworkImage(url: game.artwork?.hero ?? game.artwork?.header, fallbackTitle: "")
+            // A fill image must not report its own (huge) size, or it squeezes the sidebar shut.
+            Color.clear
                 .frame(height: 340)
                 .frame(maxWidth: .infinity)
+                .overlay { ArtworkImage(url: game.artwork?.hero ?? game.artwork?.header, fallbackTitle: "") }
                 .clipped()
             LinearGradient(stops: [
                 .init(color: .clear, location: 0.35),
