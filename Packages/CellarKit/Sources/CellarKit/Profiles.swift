@@ -14,6 +14,8 @@ public struct GameProfile: Codable, Sendable, Equatable {
     public var gameArgs: [String]?
     public var registry: [RegistryValue]?
     public var retina: Bool?
+    /// Apple's Metal performance overlay (FPS, frame time, GPU) in the game.
+    public var metalHUD: Bool?
     public var notes: String?
 
     public init(appId: String) { self.appId = appId }
@@ -40,6 +42,7 @@ public struct GameProfile: Codable, Sendable, Equatable {
         if let v = other.gameArgs { p.gameArgs = v }
         if let v = other.registry { p.registry = (p.registry ?? []) + v }
         if let v = other.retina { p.retina = v }
+        if let v = other.metalHUD { p.metalHUD = v }
         if let v = other.notes { p.notes = v }
         return p
     }

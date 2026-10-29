@@ -61,6 +61,8 @@ public struct Steam: Sendable {
         case silent
         case play(appID: String, args: [String])
         case install(appID: String)
+        /// A steam:// link handed to the running Windows Steam (a Mac `open` would reach Mac Steam).
+        case url(String)
     }
 
     /// `-cef-disable-gpu` keeps Steam's Chromium UI on the CPU, which is what renders under Wine.
@@ -72,6 +74,7 @@ public struct Steam: Sendable {
         case .silent: return base + ["-silent"]
         case .play(let id, let args): return base + (lowMemory ? ["-silent"] : []) + ["-applaunch", id] + args
         case .install(let id): return base + ["steam://install/\(id)"]
+        case .url(let link): return base + [link]
         }
     }
 

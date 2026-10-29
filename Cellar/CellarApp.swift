@@ -16,11 +16,14 @@ struct CellarApp: App {
         Window("Cellar", id: "main") {
             RootView()
                 .environment(model)
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 980, minHeight: 640)
                 .preferredColorScheme(.dark)
                 .task { model.start() }
+                .onOpenURL { model.handle($0) }
         }
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1200, height: 760)
+        .handlesExternalEvents(matching: ["*"])
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.checkForUpdates(nil) }

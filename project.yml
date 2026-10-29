@@ -67,3 +67,6 @@ targets:
         SUFeedURL: https://github.com/tigercommander131/cellar/releases/download/appcast/appcast.xml
         SUPublicEDKey: "Tx/j+4DT7pUa4v6tgXALSCMu1Y15Utw4Gh+ZZGQZojg="
         SUEnableAutomaticChecks: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.tigercommander131.cellar
+            CFBundleURLSchemes: [cellar]
