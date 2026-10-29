@@ -44,6 +44,7 @@ final class AppModel {
     var games: [Game] = []
     var steamRunning = false
     var steamUser: String?
+    var steamOffline = false
     var launching: String?
     var alert: String?
     var lowMemoryMode: Bool
@@ -117,6 +118,7 @@ final class AppModel {
         let (apps, running, runningIDs, user) = snapshot
         steamRunning = running
         steamUser = user
+        steamOffline = core.steam.offlineMode
         let art = await artworkService.artwork(for: apps.map(\.id))
         let played = core.loadState().lastPlayed ?? [:]
         games = apps.map { app in
@@ -194,6 +196,15 @@ final class AppModel {
             try? await Task.sleep(for: .seconds(90))
             if launching == game.id { launching = nil }
         }
+    }
+
+    /// Steam's offline mode, for networks (like school Wi-Fi) that block Steam's servers.
+    func setSteamOffline(_ offline: Bool) {
+        steamOffline = offline
+        perform { try $0.setSteamOffline(offline) } onError: { [weak self] in
+            self?.steamOffline = !offline
+        }
+        toast = offline ? "Steam is in offline mode. Games start without signing in." : "Steam is back online."
     }
 
     // MARK: Friends

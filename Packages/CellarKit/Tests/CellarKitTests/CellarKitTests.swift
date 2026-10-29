@@ -205,3 +205,28 @@ func tempDir() throws -> URL {
         #expect(Steam.arguments(.url("steam://friends/message/1")).last == "steam://friends/message/1")
     }
 }
+
+@Suite struct OfflineModeTests {
+    @Test func togglesSteamOfflineSetting() throws {
+        let root = try tempDir()
+        let steam = Steam(bottle: Bottle(paths: CellarPaths(root: root), name: "steam"))
+        try FileManager.default.createDirectory(at: steam.loginUsersURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try """
+        "users"
+        {
+        \t"76561199377149677"
+        \t{
+        \t\t"AccountName"\t\t"me"
+        \t\t"RememberPassword"\t\t"1"
+        \t\t"MostRecent"\t\t"1"
+        \t}
+        }
+        """.write(to: steam.loginUsersURL, atomically: true, encoding: .utf8)
+        #expect(!steam.offlineMode)
+        try steam.setOfflineMode(true)
+        #expect(steam.offlineMode)
+        try steam.setOfflineMode(false)
+        #expect(!steam.offlineMode)
+        #expect(try VDF.parse(contentsOf: steam.loginUsersURL)["users"]?["76561199377149677"]?["SkipOfflineModeWarning"]?.string == "0")
+    }
+}
