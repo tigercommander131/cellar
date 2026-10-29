@@ -8,7 +8,7 @@ usage: cellar <command> [options]
 
   status                         Mac checks, installed packs, Steam state
   setup [--manifest <url|path>]  Install engine, graphics, bottle and Steam
-  pack install <kind> <archive> [--root <dir>] [--version <v>]
+  pack install <kind> <archive> [--root <dir>] [--version <v>] [--keep a,b]
                                  Install a local pack archive (engine|dxmt|d3dmetal|profiles)
   wine [--backend <b>] <args...> Run a raw Wine command in the Steam bottle (e.g. winecfg)
   run [--backend <b>] [--wait] <exe> [args...]
@@ -84,9 +84,10 @@ do {
         var rest = Array(args.dropFirst(3))
         let root = takeOption("--root", from: &rest) ?? ""
         let version = takeOption("--version", from: &rest) ?? "local"
+        let keep = takeOption("--keep", from: &rest)?.split(separator: ",").map(String.init)
         let sha = try Downloader.sha256Hex(of: archive)
         try core.paths.ensureLayout()
-        try core.packs.installArchive(archive, entry: PackEntry(kind: kind, version: version, url: archive, sha256: sha, archiveRoot: root))
+        try core.packs.installArchive(archive, entry: PackEntry(kind: kind, version: version, url: archive, sha256: sha, archiveRoot: root, keep: keep))
         print("Installed \(kind.rawValue) \(version) (\(sha.prefix(12)))")
 
     case "wine":
