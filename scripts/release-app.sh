@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds Cellar.app (Release), zips it, signs the zip for Sparkle, writes appcast.xml and
 # uploads everything to GitHub: release v<version> plus the rolling "appcast" release.
-# Usage: scripts/release-app.sh <version> [build number]     (needs Xcode 27 and gh auth)
+# Usage: scripts/release-app.sh <version> [build number] [--no-upload]   (needs Xcode 27 and gh auth)
 # Signing key: .work/keys/sparkle_private.key (or SPARKLE_KEY_FILE).
 set -euo pipefail
 
@@ -25,7 +25,6 @@ codesign --verify --strict "$APP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT/Cellar.zip"
 SPARKLE_BIN="$(find "$DERIVED/SourcePackages/artifacts" -type d -path '*Sparkle/bin' | head -1)"
 SIG=$("$SPARKLE_BIN/sign_update" --ed-key-file "$KEY" "$OUT/Cellar.zip")
-SIZE=$(stat -f%z "$OUT/Cellar.zip")
 DATE=$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")
 URL="https://github.com/$REPO/releases/download/v$VERSION/Cellar.zip"
 
@@ -41,7 +40,7 @@ cat > "$OUT/appcast.xml" <<XML
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
       <link>https://github.com/$REPO/releases/tag/v$VERSION</link>
-      <enclosure url="$URL" $SIG type="application/octet-stream" length="$SIZE"/>
+      <enclosure url="$URL" $SIG type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
