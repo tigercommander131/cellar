@@ -1,0 +1,9 @@
+{
+  "appId": "730",
+  "title": "Counter-Strike 2",
+  "graphics": "dxmt",
+  "windowsVersion": "win10",
+  "minRAMGB": 8,
+  "gameArgs": ["-novid"],
+  "notes": "DirectX 11 through DXMT. VAC only, so it's allowed under Wine."
+}

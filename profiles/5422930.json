@@ -1,0 +1,8 @@
+{
+  "appId": "5422930",
+  "title": "One More Lawn Demo",
+  "graphics": "d3dmetal",
+  "windowsVersion": "win10",
+  "minRAMGB": 8,
+  "notes": "DirectX 12, so D3DMetal. Demo of One More Lawn (5378110)."
+}
