@@ -1,0 +1,65 @@
+# Builds Cellar's Wine engine from CodeWeavers' open-source CrossOver release and
+# publishes it, with its corresponding source, as a GitHub release.
+name: Engine
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Engine revision (bump when patches or build flags change)"
+        required: true
+        default: "1"
+  push:
+    tags: ["engine-*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 300
+    env:
+      WORK: ${{ runner.temp }}/work
+      ENGINE_REVISION: ${{ inputs.revision || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rosetta and build tools
+        run: |
+          /usr/sbin/softwareupdate --install-rosetta --agree-to-license || true
+          brew install bison mingw-w64
+
+      - name: Cache downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/work/downloads
+          key: engine-downloads-${{ hashFiles('engine/build.sh') }}
+
+      - name: Build
+        run: engine/build.sh all
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-logs
+          path: |
+            ${{ runner.temp }}/work/configure.log
+            ${{ runner.temp }}/work/make.log
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NAME="cellar-engine-cx26.3.0-${ENGINE_REVISION}"
+          TAG="engine-cx26.3.0-${ENGINE_REVISION}"
+          tar -czf "$WORK/dist/${NAME}-patches.tar.gz" engine
+          gh release create "$TAG" --title "Engine CX 26.3.0 r${ENGINE_REVISION}" --notes-file engine/RELEASE-NOTES.md \
+            "$WORK/dist/${NAME}.tar.xz" "$WORK/dist/${NAME}.tar.xz.sha256" \
+            "$WORK/dist/${NAME}-patches.tar.gz" \
+            "$WORK/downloads/crossover-sources-26.3.0.tar.gz" || \
+          gh release upload "$TAG" --clobber \
+            "$WORK/dist/${NAME}.tar.xz" "$WORK/dist/${NAME}.tar.xz.sha256" \
+            "$WORK/dist/${NAME}-patches.tar.gz" \
+            "$WORK/downloads/crossover-sources-26.3.0.tar.gz"
