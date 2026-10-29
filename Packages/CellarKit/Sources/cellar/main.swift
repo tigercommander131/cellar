@@ -10,6 +10,8 @@ usage: cellar <command> [options]
   setup [--manifest <url|path>]  Install engine, graphics, bottle and Steam
   pack install <kind> <archive> [--root <dir>] [--version <v>] [--keep a,b]
                                  Install a local pack archive (engine|dxmt|d3dmetal|profiles)
+  bottle                         Create or update the Steam bottle
+  steam-install                  Install Windows Steam into the bottle
   wine [--backend <b>] <args...> Run a raw Wine command in the Steam bottle (e.g. winecfg)
   run [--backend <b>] [--wait] <exe> [args...]
                                  Run a Windows program in the Steam bottle
@@ -89,6 +91,17 @@ do {
         try core.paths.ensureLayout()
         try core.packs.installArchive(archive, entry: PackEntry(kind: kind, version: version, url: archive, sha256: sha, archiveRoot: root, keep: keep))
         print("Installed \(kind.rawValue) \(version) (\(sha.prefix(12)))")
+
+    case "bottle":
+        let engine = try core.runtimes.prepare(.wined3d)
+        let log = core.log("bottle")
+        try core.steamBottle.create(engine: engine, log: log)
+        print("Bottle ready: \(core.steamBottle.url.path)")
+
+    case "steam-install":
+        let engine = try core.runtimes.prepare(.wined3d)
+        try await core.steam.install(engine: engine, log: core.log("steam-install"))
+        print("Steam installed.")
 
     case "wine":
         let b = backend(from: &args)

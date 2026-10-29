@@ -97,7 +97,10 @@ build_wine() {
       LDFLAGS="-L$DEPS/lib" CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
       > "$WORK/configure.log" 2>&1 ) || { tail -40 "$WORK/configure.log"; exit 1; }
   grep -E '^configure: (WARNING|error)' "$WORK/configure.log" || true
-  sed -i '' 's|#define SONAME_LIBGNUTLS.*|#define SONAME_LIBGNUTLS "libgnutls.30.dylib"|' "$BUILD/include/config.h"
+  # configure records library names from the build machine; pin the names the engine ships.
+  sed -i '' -e 's|#define SONAME_LIBGNUTLS .*|#define SONAME_LIBGNUTLS "libgnutls.30.dylib"|' \
+            -e 's|#define SONAME_LIBFREETYPE .*|#define SONAME_LIBFREETYPE "libfreetype.6.dylib"|' "$BUILD/include/config.h"
+  grep -E '#define SONAME_' "$BUILD/include/config.h"
 
   compile_wine
 }
