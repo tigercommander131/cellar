@@ -33,6 +33,6 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/tigercommander131/cellar/releases/download/appcast/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>@SPARKLE_PUBLIC_KEY@</string>
+	<string>Tx/j+4DT7pUa4v6tgXALSCMu1Y15Utw4Gh+ZZGQZojg=</string>
 </dict>
 </plist>
