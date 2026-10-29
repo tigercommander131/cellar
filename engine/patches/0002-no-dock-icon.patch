@@ -1,0 +1,45 @@
+--- a/dlls/winemac.drv/cocoa_app.m
++++ b/dlls/winemac.drv/cocoa_app.m
+@@ -127,6 +127,33 @@
+ @end
+ 
+ 
++/* Cellar: CELLAR_NO_DOCK_ICON lists Windows programs (e.g. "steam.exe;steamservice.exe") that
++ * should not get their own Dock icon. Under Wine the program's path is one of the first
++ * arguments of the process, so match their file names. */
++static BOOL cellar_hide_dock_icon(void)
++{
++    static BOOL hide;
++    static dispatch_once_t once;
++
++    dispatch_once(&once, ^{
++        const char *list = getenv("CELLAR_NO_DOCK_ICON");
++        NSArray *names, *args;
++        NSCharacterSet *seps;
++        NSUInteger i;
++
++        if (!list || !*list) return;
++        names = [[[NSString stringWithUTF8String:list] lowercaseString] componentsSeparatedByString:@";"];
++        args = [[NSProcessInfo processInfo] arguments];
++        seps = [NSCharacterSet characterSetWithCharactersInString:@"/\\"];
++        for (i = 0; i < MIN((NSUInteger)2, args.count); i++)
++        {
++            NSString *base = [[[args[i] componentsSeparatedByCharactersInSet:seps] lastObject] lowercaseString];
++            if (base.length && [names containsObject:base]) hide = YES;
++        }
++    });
++    return hide;
++}
++
+ @implementation WineApplicationController
+ 
+     @synthesize keyboardType, lastFlagsChanged;
+@@ -315,7 +342,7 @@
+                 });
+ 
+                 exeName = [NSRunningApplication currentApplication].executableURL.lastPathComponent;
+-                if ([blacklistedProcesses containsObject:exeName])
++                if ([blacklistedProcesses containsObject:exeName] || cellar_hide_dock_icon())
+                 {
+                     /* Try to honor the activation request regardless. */
+                     if (activateIfTransformed)
