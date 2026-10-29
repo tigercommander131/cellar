@@ -51,6 +51,11 @@ public struct Wine: Sendable {
         env["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
         // Read by Cellar's engine patch (engine/patches/0001): Steam's Chromium UI only draws
         // under the Mac driver as a single process using software rendering.
+        // engine/patches/0003: Steam games start from a bundle that declares itself a game, so
+        // macOS Game Mode applies. CrossOver's per-program loader links (which the bundle builds
+        // on, and which name Dock icons after the program) only run when WINEDLLPATH is set.
+        env["CELLAR_GAME_MODE"] = "1"
+        env["WINEDLLPATH"] = engine.appending(path: "lib/wine").path
         // Read by engine/patches/0002: Steam's background processes don't each get a Dock icon.
         env["CELLAR_NO_DOCK_ICON"] = "steam.exe;steamservice.exe;steamerrorreporter.exe"
         env["CELLAR_STEAMWEBHELPER_FLAGS"] = "--single-process --disable-gpu --disable-gpu-compositing --in-process-gpu"

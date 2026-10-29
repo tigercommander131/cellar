@@ -1,0 +1,94 @@
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -628,6 +628,81 @@
+ 
+ fail:
+     free(linkpath);
++    return NULL;
++}
++
++/* Cellar: macOS turns Game Mode on only for the main executable of an app bundle that
++ * declares itself a game. With CELLAR_GAME_MODE set, programs under steamapps/common start
++ * from <tempdir>/<name>.app/Contents/MacOS/<name>, a hard link to the loader beside a link
++ * to ntdll.so, in a bundle whose Info.plist has the game category. Anything that fails
++ * falls back to CrossOver's plain link. */
++static int cellar_is_game( const char *image_path )
++{
++    return getenv( "CELLAR_GAME_MODE" ) && image_path &&
++           (strcasestr( image_path, "/steamapps/common/" ) || strcasestr( image_path, "\\steamapps\\common\\" ));
++}
++
++static char *create_game_bundle( const char *wineloader_path, const char *exe_name )
++{
++    char *tempdir = create_tempdir( wineloader_path ), *contents = NULL, *macos = NULL, *exe = NULL, *path = NULL;
++    char id[128], *q;
++    const char *p;
++    struct stat st;
++    FILE *f;
++
++    if (!tempdir) return NULL;
++    if (asprintf( &contents, "%s%s.app/Contents", tempdir, exe_name ) < 0) contents = NULL;
++    if (!contents || asprintf( &macos, "%s/MacOS", contents ) < 0) goto fail;
++    if (asprintf( &exe, "%s/%s", macos, exe_name ) < 0) { exe = NULL; goto fail; }
++    if (!stat( exe, &st )) goto done;
++
++    mkdir( contents, 0700 ) ;
++    *strrchr( contents, '/' ) = 0; mkdir( contents, 0700 ); strcat( contents, "/Contents" );
++    mkdir( contents, 0700 );
++    mkdir( macos, 0700 );
++
++    for (p = exe_name, q = id; *p && q < id + sizeof(id) - 1; p++)
++        *q++ = (isalnum( (unsigned char)*p ) || *p == '-') ? *p : '-';
++    *q = 0;
++    /* Shown as the app's name: "OneMoreLawn", not "OneMoreLawn.exe". */
++    if (q - id > 4 && !strcasecmp( q - 4, "-exe" )) q[-4] = 0;
++    if (asprintf( &path, "%s/Info.plist", contents ) < 0) { path = NULL; goto fail; }
++    if (!(f = fopen( path, "w" ))) goto fail;
++    fprintf( f, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
++                "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
++                "<plist version=\"1.0\"><dict>\n"
++                "<key>CFBundleExecutable</key><string>%s</string>\n"
++                "<key>CFBundleIdentifier</key><string>com.tigercommander131.cellar.game.%s</string>\n"
++                "<key>CFBundleName</key><string>%s</string>\n"
++                "<key>CFBundleDisplayName</key><string>%s</string>\n"
++                "<key>CFBundlePackageType</key><string>APPL</string>\n"
++                "<key>LSApplicationCategoryType</key><string>public.app-category.games</string>\n"
++                "<key>LSSupportsGameMode</key><true/>\n"
++                "<key>GCSupportsGameMode</key><true/>\n"
++                "<key>NSHighResolutionCapable</key><true/>\n"
++                /* No Dock icon until the Mac driver shows a window, as for any Wine process;
++                 * a game's helper processes (Chromium-based games have several) stay hidden. */
++                "<key>LSUIElement</key><true/>\n"
++                "<key>NSMicrophoneUsageDescription</key><string>Games use the microphone for voice chat.</string>\n"
++                "</dict></plist>\n", exe_name, id, id, id );
++    fclose( f );
++    free( path );
++    path = NULL;
++
++    /* The loader finds ntdll.so beside its own path. */
++    if (asprintf( &path, "%s/ntdll.so", macos ) >= 0)
++    {
++        char *ntdll = strdup( wineloader_path ), *slash = strrchr( ntdll, '/' );
++        if (slash) { strcpy( slash + 1, "ntdll.so" ); symlink( ntdll, path ); }
++        free( ntdll );
++    }
++    if (link( wineloader_path, exe ) && symlink( wineloader_path, exe )) goto fail;
++
++done:
++    free( tempdir ); free( contents ); free( macos ); free( path );
++    return exe;
++fail:
++    free( tempdir ); free( contents ); free( macos ); free( path ); free( exe );
+     return NULL;
+ }
+ 
+@@ -636,7 +711,8 @@
+     char *app_name = extract_exe_name(image_path);
+     if (app_name)
+     {
+-        char *preloader_path = create_preloader_link(*wineloader_path, app_name);
++        char *preloader_path = cellar_is_game( image_path ) ? create_game_bundle( *wineloader_path, app_name ) : NULL;
++        if (!preloader_path) preloader_path = create_preloader_link(*wineloader_path, app_name);
+         if (preloader_path)
+         {
+             free(*wineloader_path);
