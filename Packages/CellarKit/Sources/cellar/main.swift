@@ -12,7 +12,8 @@ usage: cellar <command> [options]
                                  Install a local pack archive (engine|dxmt|d3dmetal|profiles)
   bottle                         Create or update the Steam bottle
   steam-install                  Install Windows Steam into the bottle
-  wine [--backend <b>] <args...> Run a raw Wine command in the Steam bottle (e.g. winecfg)
+  wine [--backend <b>] [--env K=V] <args...>
+                                 Run a raw Wine command in the Steam bottle (e.g. winecfg)
   run [--backend <b>] [--wait] <exe> [args...]
                                  Run a Windows program in the Steam bottle
   steam open | list | stop
@@ -40,6 +41,15 @@ func takeFlag(_ name: String, from args: inout [String]) -> Bool {
     guard let i = args.firstIndex(of: name) else { return false }
     args.remove(at: i)
     return true
+}
+
+/// `--env K=V` (repeatable) for debugging, e.g. --env WINEDEBUG=+loaddll
+func extraEnv(from args: inout [String]) -> [String: String] {
+    var env: [String: String] = [:]
+    while let kv = takeOption("--env", from: &args), let eq = kv.firstIndex(of: "=") {
+        env[String(kv[..<eq])] = String(kv[kv.index(after: eq)...])
+    }
+    return env
 }
 
 func backend(from args: inout [String]) -> GraphicsBackend {
@@ -105,9 +115,10 @@ do {
 
     case "wine":
         let b = backend(from: &args)
+        let env = extraEnv(from: &args)
         let engine = try core.runtimes.prepare(b)
         try core.steamBottle.prepare(for: b)
-        let status = try core.steamBottle.wine(engine: engine).run(args, config: LaunchConfig(backend: b), log: core.log("wine"), timeout: 24 * 3600)
+        let status = try core.steamBottle.wine(engine: engine).run(args, config: LaunchConfig(backend: b, extraEnvironment: env), log: core.log("wine"), timeout: 24 * 3600)
         exit(status)
 
     case "run":

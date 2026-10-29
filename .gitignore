@@ -7,3 +7,4 @@ DerivedData/
 *.xcodeproj/
 xcuserdata/
 .swiftpm/
+tools/d3dtest/*.exe
