@@ -48,7 +48,7 @@ XML
 echo "Built Cellar $VERSION ($BUILD), $(du -h "$OUT/Cellar.zip" | cut -f1)"
 
 [ "${3:-}" = "--no-upload" ] && exit 0
-gh release create "v$VERSION" -R "$REPO" --title "Cellar $VERSION" --notes-file "$ROOT/docs/RELEASE-NOTES.md" "$OUT/Cellar.zip"
+gh release create "v$VERSION" -R "$REPO" --title "Cellar $VERSION" --notes-file "$ROOT/docs/RELEASE-NOTES.md" --latest "$OUT/Cellar.zip"
 gh release view appcast -R "$REPO" >/dev/null 2>&1 || \
   gh release create appcast -R "$REPO" --title "Update feed" --notes "Sparkle update feed. Not a download." --latest=false
 gh release upload appcast -R "$REPO" --clobber "$OUT/appcast.xml"
