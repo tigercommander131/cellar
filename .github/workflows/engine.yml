@@ -9,8 +9,6 @@ on:
         description: "Engine revision (bump when patches or build flags change)"
         required: true
         default: "1"
-  push:
-    tags: ["engine-*"]
 
 permissions:
   contents: write
