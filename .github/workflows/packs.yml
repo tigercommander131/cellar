@@ -1,0 +1,21 @@
+# Publishes packs.json and the game-fix profiles whenever they change on main.
+name: Packs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["profiles/**", "packs.json", "scripts/publish-packs.sh"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/publish-packs.sh

@@ -116,7 +116,20 @@ package() {
   cp -cP "$DEPS/lib/"*.dylib "$STAGE/lib/"
   mkdir -p "$STAGE/share/wine/mono"
   tar -xJf "$DL/wine-mono-10.4.1-x86.tar.xz" -C "$STAGE/share/wine/mono"
-  rm -rf "$STAGE/share/man" "$STAGE/include"
+  rm -rf "$STAGE/share/man" "$STAGE/include" "$STAGE/share/applications"
+
+  log "Slimming (developer tools, import libraries, debug info)"
+  local t
+  for t in function_grep.pl widl winebuild winecpp winedump wineg++ winegcc winemaker wmc wrc; do rm -f "$STAGE/bin/$t"; done
+  find "$STAGE/lib/wine" -name '*.a' -delete
+  local brew_bin; brew_bin="$(brew --prefix mingw-w64)/bin"
+  find "$STAGE/lib/wine/x86_64-windows" -type f \( -name '*.dll' -o -name '*.exe' -o -name '*.drv' -o -name '*.sys' -o -name '*.ocx' -o -name '*.cpl' -o -name '*.acm' -o -name '*.ax' -o -name '*.tlb' -o -name '*.ds' \) \
+    -exec "$brew_bin/x86_64-w64-mingw32-strip" --strip-debug {} + 2>/dev/null || true
+  find "$STAGE/lib/wine/i386-windows" -type f \( -name '*.dll' -o -name '*.exe' -o -name '*.drv' -o -name '*.sys' -o -name '*.ocx' -o -name '*.cpl' -o -name '*.acm' -o -name '*.ax' -o -name '*.tlb' -o -name '*.ds' \) \
+    -exec "$brew_bin/i686-w64-mingw32-strip" --strip-debug {} + 2>/dev/null || true
+  find "$STAGE/lib/wine/x86_64-unix" -type f -name '*.so' -exec strip -S {} + 2>/dev/null || true
+  strip -S "$STAGE/bin/wine" "$STAGE/bin/wineserver" "$STAGE/bin/wine-preloader" 2>/dev/null || true
+  du -sh "$STAGE"
 
   # Wine needs to map executable memory and load unsigned Windows-side code.
   local ent="$WORK/wine.entitlements"

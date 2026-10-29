@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "packs": [
+    {
+      "kind": "engine",
+      "version": "cx26.3.0-1",
+      "url": "https://github.com/tigercommander131/cellar/releases/download/engine-cx26.3.0-1/cellar-engine-cx26.3.0-1.tar.xz",
+      "sha256": "@ENGINE_SHA@",
+      "archiveRoot": "cellar-engine-cx26.3.0-1"
+    },
+    {
+      "kind": "dxmt",
+      "version": "0.80",
+      "url": "https://github.com/3Shain/dxmt/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz",
+      "sha256": "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d",
+      "archiveRoot": "v0.80"
+    },
+    {
+      "kind": "d3dmetal",
+      "version": "3.0-3",
+      "url": "https://github.com/Gcenx/game-porting-toolkit/releases/download/Game-Porting-Toolkit-3.0-3/game-porting-toolkit-3.0-3.tar.xz",
+      "sha256": "d377683937340f914823dbb2e1252b329cbf834ff58907d0293db8cebf0e392e",
+      "archiveRoot": "Game Porting Toolkit.app/Contents/Resources/wine",
+      "keep": [
+        "lib/external",
+        "lib/wine/x86_64-windows/dxgi.dll",
+        "lib/wine/x86_64-windows/d3d11.dll",
+        "lib/wine/x86_64-windows/d3d12.dll",
+        "lib/wine/x86_64-windows/d3d10.dll",
+        "lib/wine/x86_64-windows/atidxx64.dll",
+        "lib/wine/x86_64-windows/nvapi64.dll",
+        "lib/wine/x86_64-windows/nvngx.dll"
+      ]
+    },
+    {
+      "kind": "profiles",
+      "version": "1",
+      "url": "https://github.com/tigercommander131/cellar/releases/download/packs/cellar-profiles.tar.gz",
+      "sha256": "@PROFILES_SHA@",
+      "archiveRoot": ""
+    }
+  ]
+}
