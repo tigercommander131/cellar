@@ -11,6 +11,11 @@ struct SettingsView: View {
                 Text("Hides Steam's window while a game runs and keeps Steam's browser lighter. On by default for Macs with 8 GB of memory (this Mac: \(model.host.memoryGB) GB).")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Performance") {
+                Toggle("Show FPS counter in games", isOn: Binding(get: { model.showFPS }, set: { model.setShowFPS($0) }))
+                Text("Apple's Metal overlay: frame rate, frame time and GPU use. Each game can override this in its settings.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Installed components") {
                 ForEach(PackKind.allCases, id: \.self) { kind in
                     LabeledContent(kind.label, value: model.core.packs.installed(kind)?.version ?? "Not installed")

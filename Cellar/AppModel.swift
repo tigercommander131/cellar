@@ -9,9 +9,15 @@ struct Game: Identifiable, Equatable {
     var profile: GameProfile
     var artwork: SteamArtwork?
     var isRunning: Bool
+    var lastPlayed: Date?
 
     var id: String { app.id }
     var name: String { app.name }
+}
+
+enum Tab: String, CaseIterable, Identifiable {
+    case home = "Home", library = "Library", friends = "Friends"
+    var id: String { rawValue }
 }
 
 @MainActor
@@ -27,6 +33,7 @@ final class AppModel {
     let core = CellarCore()
     let host = HostCheck.current()
     private let artworkService: ArtworkService
+    private let friendsService: FriendsService
 
     var phase: Phase = .loading
     var setupStep: CellarCore.SetupStep?
@@ -40,15 +47,43 @@ final class AppModel {
     var launching: String?
     var alert: String?
     var lowMemoryMode: Bool
+    var showFPS: Bool
+
+    var tab: Tab = .home
+    var focusedGameID: String?
+    var settingsGame: Game?
+    var friends: [SteamFriend] = []
+    var friendsLoaded = false
+    var toast: String?
 
     private var refreshTask: Task<Void, Never>?
+    private var friendsTask: Task<Void, Never>?
 
     init() {
         artworkService = ArtworkService(paths: core.paths)
+        friendsService = FriendsService(steam: core.steam)
         lowMemoryMode = core.lowMemoryMode(host: host)
+        showFPS = core.loadState().showFPS ?? false
     }
 
-    var installedGames: [Game] { games.filter { $0.app.isInstalled && !$0.app.isUpdating } }
+    /// Installed games, most recently played first.
+    var installedGames: [Game] {
+        games.filter { $0.app.isInstalled && !$0.app.isUpdating }.sorted {
+            switch ($0.lastPlayed, $1.lastPlayed) {
+            case let (a?, b?): a > b
+            case (_?, nil): true
+            case (nil, _?): false
+            default: $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+    }
+
+    var focusedGame: Game? {
+        installedGames.first { $0.id == focusedGameID } ?? installedGames.first
+    }
+
+    var friendsInGame: [SteamFriend] { friends.filter { $0.state == .inGame } }
+    var friendsOnline: [SteamFriend] { friends.filter { $0.state == .online || $0.state == .away } }
     var downloadingGames: [Game] { games.filter { !$0.app.isInstalled || $0.app.isUpdating } }
     var runningGame: Game? { games.first { $0.isRunning } }
 
@@ -83,8 +118,10 @@ final class AppModel {
         steamRunning = running
         steamUser = user
         let art = await artworkService.artwork(for: apps.map(\.id))
+        let played = core.loadState().lastPlayed ?? [:]
         games = apps.map { app in
-            Game(app: app, profile: core.profiles.profile(for: app.id), artwork: art[app.id], isRunning: runningIDs.contains(app.id))
+            Game(app: app, profile: core.profiles.profile(for: app.id), artwork: art[app.id],
+                 isRunning: runningIDs.contains(app.id), lastPlayed: played[app.id])
         }
         if let launching, runningIDs.contains(launching) { self.launching = nil }
     }
@@ -159,6 +196,83 @@ final class AppModel {
         }
     }
 
+    // MARK: Friends
+
+    func startFriends() {
+        guard friendsTask == nil else { return }
+        friendsTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                let list = await friendsService.friendsWithStatus()
+                friends = list
+                friendsLoaded = true
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+    }
+
+    func chat(with friend: SteamFriend) {
+        perform { try $0.launchSteam(.url(FriendsService.chatLink(friend))) }
+    }
+
+    /// An installed game a friend is playing, matched by name.
+    func installedGame(named name: String?) -> Game? {
+        guard let name else { return nil }
+        return installedGames.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    // MARK: Links (cellar://play/<appid> from Dock shortcuts)
+
+    func handle(_ url: URL) {
+        guard url.scheme == "cellar", phase == .ready else { return }
+        let parts = [url.host()].compactMap { $0 } + url.pathComponents.filter { $0 != "/" }
+        guard parts.first == "play", parts.count >= 2 else { return }
+        let id = parts[1]
+        focusedGameID = id
+        tab = .home
+        if let game = games.first(where: { $0.id == id }) {
+            play(game)
+        } else {
+            perform { try $0.launchSteam(.play(appID: id, args: [])) }
+        }
+    }
+
+    func addToDock(_ game: Game) {
+        Task {
+            do {
+                let app = try await ShortcutMaker.create(for: game)
+                NSWorkspace.shared.activateFileViewerSelecting([app])
+                toast = "\(game.name) is in Applications › Cellar Games. Drag it to your Dock."
+            } catch {
+                alert = "Couldn't make a shortcut: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func setMetalHUD(_ on: Bool?, for game: Game) {
+        var override = core.profiles.override(game.id) ?? GameProfile(appId: game.id)
+        override.metalHUD = on
+        saveOverride(override, for: game)
+    }
+
+    func setShowFPS(_ on: Bool) {
+        showFPS = on
+        var state = core.loadState()
+        state.showFPS = on ? true : nil
+        try? core.saveState(state)
+        Task { await refresh() }
+    }
+
+    private func saveOverride(_ override: GameProfile, for game: Game) {
+        if override == GameProfile(appId: game.id) {
+            core.profiles.clearOverride(game.id)
+        } else {
+            try? core.profiles.saveOverride(override)
+        }
+        Task { await refresh() }
+        if settingsGame?.id == game.id { settingsGame = games.first { $0.id == game.id } }
+    }
+
     func stopAll() {
         let core = self.core
         launching = nil
@@ -168,12 +282,7 @@ final class AppModel {
     func setBackend(_ backend: GraphicsBackend?, for game: Game) {
         var override = core.profiles.override(game.id) ?? GameProfile(appId: game.id)
         override.graphics = backend
-        if override == GameProfile(appId: game.id) {
-            core.profiles.clearOverride(game.id)
-        } else {
-            try? core.profiles.saveOverride(override)
-        }
-        Task { await refresh() }
+        saveOverride(override, for: game)
     }
 
     func setLowMemoryMode(_ on: Bool) {

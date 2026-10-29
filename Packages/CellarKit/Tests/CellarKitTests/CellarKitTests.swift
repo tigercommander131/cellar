@@ -182,3 +182,26 @@ func tempDir() throws -> URL {
         }
     }
 }
+
+@Suite struct FriendsTests {
+    @Test func parsesInGameProfile() {
+        let p = FriendsService.parseProfile("""
+        <profile><steamID><![CDATA[mate]]></steamID><onlineState>in-game</onlineState>
+        <stateMessage><![CDATA[In-Game<br/>One More Lawn]]></stateMessage><privacyState>public</privacyState>
+        <avatarMedium><![CDATA[https://avatars.example/a_medium.jpg]]></avatarMedium>
+        <inGameInfo><gameName><![CDATA[One More Lawn]]></gameName></inGameInfo></profile>
+        """)
+        #expect(p.state == .inGame)
+        #expect(p.game == "One More Lawn")
+        #expect(p.name == "mate")
+    }
+
+    @Test func privateProfilesStayUnknown() {
+        let p = FriendsService.parseProfile("<profile><steamID>x</steamID><onlineState>online</onlineState><privacyState>private</privacyState></profile>")
+        #expect(p.state == .unknown)
+    }
+
+    @Test func steamLinksGoToWindowsSteam() {
+        #expect(Steam.arguments(.url("steam://friends/message/1")).last == "steam://friends/message/1")
+    }
+}

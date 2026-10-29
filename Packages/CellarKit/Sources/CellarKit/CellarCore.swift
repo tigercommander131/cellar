@@ -6,6 +6,10 @@ public struct CellarState: Codable, Sendable, Equatable {
     /// nil = decide from RAM (on for 8 GB Macs).
     public var lowMemoryMode: Bool?
     public var steamSession: SteamSession?
+    /// Default for games whose profile doesn't say: show the Metal performance overlay.
+    public var showFPS: Bool?
+    /// When each game was last started from Cellar.
+    public var lastPlayed: [String: Date]?
 
     public struct SteamSession: Codable, Sendable, Equatable {
         public var fingerprint: String
@@ -151,6 +155,7 @@ public struct CellarCore: Sendable {
     public func launchConfig(for profile: GameProfile?) -> LaunchConfig {
         let profile = profile ?? GameProfile(appId: "")
         var config = LaunchConfig(backend: profile.backend)
+        config.metalHUD = profile.metalHUD ?? loadState().showFPS ?? false
         config.extraEnvironment = profile.env ?? [:]
         config.dllOverrides = profile.dllOverrides ?? [:]
         return config
@@ -214,8 +219,9 @@ public struct CellarCore: Sendable {
         let finalArgs = Steam.arguments(finalMode, steamArgs: profile?.steamArgs ?? [], lowMemory: lowMemoryMode())
         if !isSteamRunning() {
             state.steamSession = .init(fingerprint: fp, backend: config.backend, started: Date())
-            try saveState(state)
         }
+        if case .play(let id, _) = mode { state.lastPlayed = (state.lastPlayed ?? [:]).merging([id: Date()]) { $1 } }
+        try saveState(state)
         _ = try wine.start(finalArgs, config: config, log: log("steam"), workingDirectory: steam.steamDir)
     }
 

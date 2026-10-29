@@ -4,6 +4,7 @@ import SwiftUI
 /// The accent pill used for Set Up and Play.
 struct PillButtonStyle: ButtonStyle {
     var large = false
+    var tint: Color = .accentColor
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
@@ -11,10 +12,24 @@ struct PillButtonStyle: ButtonStyle {
             .font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
             .padding(.horizontal, large ? 28 : 20)
             .padding(.vertical, large ? 11 : 8)
-            .background(Capsule().fill(Color.accentColor.opacity(isEnabled ? 1 : 0.4)))
+            .background(Capsule().fill(tint.opacity(isEnabled ? 1 : 0.4)))
+            .shadow(color: tint.opacity(large ? 0.45 : 0), radius: 14, y: 4)
             .foregroundStyle(.white)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// Small translucent buttons for the top bar and rows.
+struct GlassButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(.white.opacity(configuration.isPressed ? 0.25 : 0.13)))
+            .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
+            .foregroundStyle(.white)
+            .contentShape(Capsule())
     }
 }
 
