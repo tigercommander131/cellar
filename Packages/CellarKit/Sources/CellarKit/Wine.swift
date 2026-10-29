@@ -33,7 +33,7 @@ public struct Wine: Sendable {
     public var wineserver: URL { engine.appending(path: "bin/wineserver") }
 
     /// Variables that would leak another Wine setup into ours.
-    static let strippedPrefixes = ["WINE", "CELLAR_STEAMWEBHELPER", "DYLD_", "DXMT_", "MTL_", "D3DM_", "CX_", "ROSETTA_", "MVK_", "GST_", "SDL_"]
+    static let strippedPrefixes = ["WINE", "CELLAR_", "DYLD_", "DXMT_", "MTL_", "D3DM_", "CX_", "ROSETTA_", "MVK_", "GST_", "SDL_"]
 
     public func environment(_ config: LaunchConfig) -> [String: String] {
         var env = ProcessInfo.processInfo.environment.filter { key, _ in
@@ -51,6 +51,8 @@ public struct Wine: Sendable {
         env["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
         // Read by Cellar's engine patch (engine/patches/0001): Steam's Chromium UI only draws
         // under the Mac driver as a single process using software rendering.
+        // Read by engine/patches/0002: Steam's background processes don't each get a Dock icon.
+        env["CELLAR_NO_DOCK_ICON"] = "steam.exe;steamservice.exe;steamerrorreporter.exe"
         env["CELLAR_STEAMWEBHELPER_FLAGS"] = "--single-process --disable-gpu --disable-gpu-compositing --in-process-gpu"
         env["DYLD_FALLBACK_LIBRARY_PATH"] = engine.appending(path: "lib").path + ":/usr/lib"
 
