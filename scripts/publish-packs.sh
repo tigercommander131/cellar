@@ -9,9 +9,21 @@ REPO="${REPO:-tigercommander131/cellar}"
 OUT="$ROOT/.work/packs-release"
 rm -rf "$OUT"; mkdir -p "$OUT"
 
-# Deterministic tarball so unchanged profiles keep the same checksum.
-tar -C "$ROOT" --uid 0 --gid 0 --uname "" --gname "" -cf - $(cd "$ROOT" && find profiles -name '*.json' | sort) \
-  | gzip -n -9 > "$OUT/cellar-profiles.tar.gz"
+# Deterministic tarball (fixed owners and times, sorted, no gzip timestamp) so unchanged
+# profiles keep the same checksum on any machine.
+python3 - "$ROOT" "$OUT/cellar-profiles.tar.gz" <<'PY'
+import gzip, io, pathlib, sys, tarfile
+root, out = pathlib.Path(sys.argv[1]), sys.argv[2]
+buf = io.BytesIO()
+with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tar:
+    for f in sorted((root / "profiles").glob("*.json")):
+        data = f.read_bytes()
+        info = tarfile.TarInfo(f"profiles/{f.name}")
+        info.size, info.mode, info.mtime = len(data), 0o644, 0
+        tar.addfile(info, io.BytesIO(data))
+with open(out, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0, filename="") as gz:
+    gz.write(buf.getvalue())
+PY
 PROFILES_SHA=$(shasum -a 256 "$OUT/cellar-profiles.tar.gz" | cut -d' ' -f1)
 
 ENGINE_URL=$(python3 -c "import json;print([p['url'] for p in json.load(open('$ROOT/packs.json'))['packs'] if p['kind']=='engine'][0])")
