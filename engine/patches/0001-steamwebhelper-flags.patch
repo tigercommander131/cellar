@@ -1,0 +1,35 @@
+--- a/dlls/kernelbase/process.c
++++ b/dlls/kernelbase/process.c
+@@ -566,7 +566,32 @@
+             return FALSE;
+         }
+     }
++
++    /* Cellar: Steam's Chromium UI (steamwebhelper.exe) stays black under the Mac driver unless it
++     * runs in one process. CELLAR_STEAMWEBHELPER_FLAGS holds Chromium flags to append to the
++     * helper's main process (its children carry --type= and inherit the flags from it). */
++    {
++        WCHAR extra[512];
++        DWORD extra_len = GetEnvironmentVariableW( L"CELLAR_STEAMWEBHELPER_FLAGS", extra, ARRAY_SIZE(extra) );
++        const WCHAR *base = app_name ? wcsrchr( app_name, '\\' ) : NULL;
+ 
++        base = base ? base + 1 : app_name;
++        if (extra_len && extra_len < ARRAY_SIZE(extra) && base && !wcsicmp( base, L"steamwebhelper.exe" )
++            && tidy_cmdline && !wcsstr( tidy_cmdline, L"--type=" ))
++        {
++            size_t len = lstrlenW( tidy_cmdline ) + extra_len + 2;
++            WCHAR *new_cmdline = RtlAllocateHeap( GetProcessHeap(), 0, len * sizeof(WCHAR) );
++
++            if (new_cmdline)
++            {
++                swprintf( new_cmdline, len, L"%s %s", tidy_cmdline, extra );
++                if (tidy_cmdline != cmd_line) RtlFreeHeap( GetProcessHeap(), 0, tidy_cmdline );
++                tidy_cmdline = new_cmdline;
++                FIXME( "HACK: steamwebhelper.exe gets %s\n", debugstr_w(extra) );
++            }
++        }
++    }
++
+     /* Warn if unsupported features are used */
+ 
+     if (flags & (IDLE_PRIORITY_CLASS | HIGH_PRIORITY_CLASS | REALTIME_PRIORITY_CLASS |
