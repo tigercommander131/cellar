@@ -225,6 +225,19 @@ public struct CellarCore: Sendable {
         _ = try wine.start(finalArgs, config: config, log: log("steam"), workingDirectory: steam.steamDir)
     }
 
+    /// Switches Steam's offline mode. Steam has to restart for it, so this refuses while a game runs,
+    /// and reopens Steam afterwards if it was open.
+    public func setSteamOffline(_ offline: Bool) throws {
+        let games = runningGames()
+        guard games.isEmpty else {
+            throw CellarError("Close \(games.map(\.windowsName).joined(separator: ", ")) first: Steam has to restart.")
+        }
+        let wasRunning = isSteamRunning()
+        if wasRunning { stopSteam() }
+        try steam.setOfflineMode(offline)
+        if wasRunning { try launchSteam(.open) }
+    }
+
     public func stopSteam(engine: URL? = nil) {
         let engine = engine ?? paths.pack(.engine)
         steamBottle.wine(engine: engine).kill()

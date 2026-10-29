@@ -127,6 +127,61 @@ public struct Steam: Sendable {
         return result.filter { !$0.isTool }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    // MARK: Offline mode
+
+    var loginUsersURL: URL { steamDir.appending(path: "config/loginusers.vdf") }
+
+    /// Steam's own "start offline" setting for the remembered account(s). Offline mode uses the
+    /// sign-in saved from the last online start, so games launch on networks that block Steam.
+    public var offlineMode: Bool {
+        guard let vdf = try? VDF.parse(contentsOf: loginUsersURL), let users = vdf["users"] else { return false }
+        let recent = users.pairs.first { $0.1["MostRecent"]?.string == "1" } ?? users.pairs.first
+        return recent?.1["WantsOfflineMode"]?.string == "1"
+    }
+
+    /// Steam rewrites this file when it exits, so call this only while Steam is closed.
+    public func setOfflineMode(_ offline: Bool) throws {
+        guard let text = try? String(contentsOf: loginUsersURL, encoding: .utf8) else {
+            throw CellarError("Sign in to Steam once while online before using offline mode.")
+        }
+        let value = offline ? "1" : "0"
+        let keys = ["WantsOfflineMode", "SkipOfflineModeWarning"]
+        var lines = text.components(separatedBy: "\n")
+        // Set existing keys in place.
+        var seen: Set<String> = []
+        for i in lines.indices {
+            let trimmed = lines[i].trimmingCharacters(in: .whitespaces)
+            for key in keys where trimmed.hasPrefix("\"\(key)\"") {
+                let indent = lines[i].prefix { $0 == "\t" || $0 == " " }
+                lines[i] = "\(indent)\"\(key)\"\t\t\"\(value)\""
+                seen.insert(key)
+            }
+        }
+        // Add missing keys before the closing brace of each account block ("<17-digit id>" { ... }).
+        let missing = keys.filter { !seen.contains($0) }
+        if !missing.isEmpty {
+            var out: [String] = []
+            var inAccount = false
+            var pendingAccount = false
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.count == 19, trimmed.hasPrefix("\""), trimmed.hasSuffix("\""), trimmed.dropFirst().dropLast().allSatisfy(\.isNumber) {
+                    pendingAccount = true
+                } else if pendingAccount, trimmed == "{" {
+                    inAccount = true
+                    pendingAccount = false
+                } else if inAccount, trimmed == "}" {
+                    let indent = String(line.prefix { $0 == "\t" || $0 == " " })
+                    for key in missing { out.append("\(indent)\t\"\(key)\"\t\t\"\(value)\"") }
+                    inAccount = false
+                }
+                out.append(line)
+            }
+            lines = out
+        }
+        try lines.joined(separator: "\n").write(to: loginUsersURL, atomically: true, encoding: .utf8)
+    }
+
     /// The signed-in account, if Steam remembers one.
     public func signedInUser() -> String? {
         guard let vdf = try? VDF.parse(contentsOf: steamDir.appending(path: "config/loginusers.vdf")),

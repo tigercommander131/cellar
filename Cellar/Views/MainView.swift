@@ -93,14 +93,30 @@ struct TopBar: View {
                     .buttonStyle(GlassButtonStyle())
                     .help("Force-quit Steam and every game (⇧⌘K)")
             }
-            Button { model.openSteam() } label: {
+            // Account menu (pattern from Quo on Mobbin): who you are, your status, and the offline switch.
+            Menu {
+                Section(model.steamUser.map { "\($0) · \(model.steamOffline ? "Offline" : (model.steamRunning ? "Online" : "Steam closed"))" } ?? "Steam") {
+                    Button(model.steamRunning ? "Show Steam" : "Open Steam") { model.openSteam() }
+                    if model.steamOffline {
+                        Button("Go Online") { model.setSteamOffline(false) }
+                    } else {
+                        Button("Go Offline (for school Wi-Fi)") { model.setSteamOffline(true) }
+                    }
+                }
+            } label: {
                 HStack(spacing: 7) {
-                    StatusDot(on: model.steamRunning)
+                    Circle()
+                        .fill(model.steamOffline ? Color.orange : (model.steamRunning ? Color.green : Color.secondary.opacity(0.5)))
+                        .frame(width: 8, height: 8)
                     Text(model.steamUser ?? "Steam")
+                    if model.steamOffline { Text("Offline").foregroundStyle(.orange) }
                 }
             }
+            .menuStyle(.button)
             .buttonStyle(GlassButtonStyle())
-            .help(model.steamRunning ? "Steam is running. Click to show it." : "Open Steam")
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(model.steamOffline ? "Steam is in offline mode" : "Steam account and offline mode")
             SettingsLink { Image(systemName: "gearshape.fill") }
                 .buttonStyle(GlassButtonStyle())
                 .help("Settings")
