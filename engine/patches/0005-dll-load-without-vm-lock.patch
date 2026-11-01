@@ -1,0 +1,65 @@
+# From Recall (github.com/AsherJN/recall, Apache-2.0): a DLL's Unix library is loaded without holding
+# Wine's virtual-memory lock, removing freezes of hundreds of ms during games under Rosetta.
+diff --git a/dlls/ntdll/unix/virtual.c b/dlls/ntdll/unix/virtual.c
+--- a/dlls/ntdll/unix/virtual.c
++++ b/dlls/ntdll/unix/virtual.c
+@@ -835,31 +914,50 @@ void *get_builtin_so_handle( void *module )
+ /***********************************************************************
+  *           get_builtin_unix_funcs
+  */
++static struct builtin_module *find_builtin_unix_module( void *module )
++{
++    struct builtin_module *builtin;
++
++    LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
++        if (builtin->module == module) return builtin;
++    return NULL;
++}
++
+ static NTSTATUS get_builtin_unix_funcs( void *module, BOOL wow, const void **funcs )
+ {
+     const char *ptr_name = wow ? "__wine_unix_call_wow64_funcs" : "__wine_unix_call_funcs";
+     sigset_t sigset;
+     NTSTATUS status = STATUS_DLL_NOT_FOUND;
+     struct builtin_module *builtin;
++    char *unix_path = NULL;
++    void *handle;
+ 
+     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+-    LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
++    if ((builtin = find_builtin_unix_module( module )) && builtin->unix_path && !builtin->unix_handle)
++        unix_path = strdup( builtin->unix_path );
++    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
++
++    /* Load the Unix library without holding virtual_mutex: under Rosetta dlopen() takes
++     * hundreds of milliseconds, and every other thread's memory operation, page fault and
++     * socket call would wait for it. */
++    handle = unix_path ? dlopen( unix_path, RTLD_NOW ) : NULL;
++    if (unix_path && !handle) WARN_(module)( "failed to load %s: %s\n", debugstr_a(unix_path), dlerror() );
++
++    server_enter_uninterrupted_section( &virtual_mutex, &sigset );
++    if ((builtin = find_builtin_unix_module( module )))
+     {
+-        if (builtin->module != module) continue;
+-        if (builtin->unix_path && !builtin->unix_handle)
+-        {
+-            builtin->unix_handle = dlopen( builtin->unix_path, RTLD_NOW );
+-            if (!builtin->unix_handle)
+-                WARN_(module)( "failed to load %s: %s\n", debugstr_a(builtin->unix_path), dlerror() );
+-        }
++        if (handle && !builtin->unix_handle) builtin->unix_handle = handle;
++        else if (handle) dlclose( handle );  /* another thread loaded it first; drop our reference */
++        handle = NULL;
+         if (builtin->unix_handle)
+         {
+             *funcs = dlsym( builtin->unix_handle, ptr_name );
+             status = *funcs ? STATUS_SUCCESS : STATUS_ENTRYPOINT_NOT_FOUND;
+         }
+-        break;
+     }
+     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
++    if (handle) dlclose( handle );  /* the module went away while its library loaded */
++    free( unix_path );
+     return status;
+ }
+ 

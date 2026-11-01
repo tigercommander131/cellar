@@ -1,12 +1,9 @@
 --- a/dlls/ntdll/unix/loader.c
 +++ b/dlls/ntdll/unix/loader.c
-@@ -628,6 +628,81 @@
+@@ -631,12 +631,89 @@
+     return NULL;
+ }
  
- fail:
-     free(linkpath);
-+    return NULL;
-+}
-+
 +/* Cellar: macOS turns Game Mode on only for the main executable of an app bundle that
 + * declares itself a game. With CELLAR_GAME_MODE set, programs under steamapps/common start
 + * from <tempdir>/<name>.app/Contents/MacOS/<name>, a hard link to the loader beside a link
@@ -60,6 +57,7 @@
 +                 * a game's helper processes (Chromium-based games have several) stay hidden. */
 +                "<key>LSUIElement</key><true/>\n"
 +                "<key>NSMicrophoneUsageDescription</key><string>Games use the microphone for voice chat.</string>\n"
++                "<key>NSLocalNetworkUsageDescription</key><string>Games look for friends on your local network.</string>\n"
 +                "</dict></plist>\n", exe_name, id, id, id );
 +    fclose( f );
 +    free( path );
@@ -79,10 +77,11 @@
 +    return exe;
 +fail:
 +    free( tempdir ); free( contents ); free( macos ); free( path ); free( exe );
-     return NULL;
- }
- 
-@@ -636,7 +711,8 @@
++    return NULL;
++}
++
+ static void replace_wineloader_path_with_link(char **wineloader_path, const char *image_path)
+ {
      char *app_name = extract_exe_name(image_path);
      if (app_name)
      {

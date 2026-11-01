@@ -9,5 +9,7 @@ Wine is LGPL-2.1-or-later. The bundled x86_64 libraries (GnuTLS, MoltenVK, SDL2 
 frankea/Whisky's `Libraries.tar.gz` v3.1.1 (GPL), whose sources are listed in that project.
 wine-mono 10.4.1 is the official wine-mono release.
 
+Patches 0004 and 0005 (fewer stutters) come from Recall (github.com/AsherJN/recall, Apache-2.0).
+
 Cellar is not affiliated with CodeWeavers. CrossOver is a trademark of CodeWeavers, Inc.
 D3DMetal is never included: each Mac downloads it from Gcenx's Game Porting Toolkit build during setup.
