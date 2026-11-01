@@ -4,7 +4,7 @@
 
 **One-click Join.** When a friend is in a game you can join, click **Join**, in the overlay or the Friends tab. Cellar starts the game with the right settings and puts you in their lobby. This works in games that use Steam's lobbies. Games with their own server browser are still joined inside the game.
 
-**Smoother games.** Two fixes in the Wine engine remove regular pauses: one about every 30 seconds, one when a game loads part of itself. Thanks to the Recall project.
+**Smoother games.** Two fixes in the Wine engine target regular pauses: one about every 30 seconds, one when a game loads part of itself. They come from the Recall project, which measured the gains in Overwatch; your games may differ.
 
 **Presets and more settings.** Each game has Quality, Balanced and Battery presets, plus an Advanced section: graphics backend, frame limit, FPS counter, Retina, Steam's overlay, launch options. Frame limits work on DXMT games; on D3DMetal games, use the game's own limit or vsync.
 

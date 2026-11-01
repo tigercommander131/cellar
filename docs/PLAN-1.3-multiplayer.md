@@ -1,6 +1,6 @@
 # Cellar 1.3 plan: easy multiplayer, overlay, performance, settings
 
-Status: **plan only. Nothing is built yet.** Waiting for go-ahead.
+Status: **shipped as Cellar 1.3.** Changes from this plan: the real Steam overlay worked in One More Lawn, but Joel chose Cellar's overlay as the main one, so Steam's is an off-by-default Advanced switch. Not yet tested: Join and Invite between two real players, and Nuclear Option on DXMT vs D3DMetal.
 
 **Goal:** one-click Join and Invite in games that support it, a stable overlay, smoother games, and more settings, without making the app harder to use.
 
