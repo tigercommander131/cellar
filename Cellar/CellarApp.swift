@@ -4,6 +4,7 @@ import SwiftUI
 
 @main
 struct CellarApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
@@ -32,6 +33,8 @@ struct CellarApp: App {
                 Button("Open Steam") { model.openSteam() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
                     .disabled(model.phase != .ready)
+                Button("Show Overlay") { model.overlay.toggle() }
+                    .disabled(model.runningGame == nil)
                 Button("Force Quit All Games") { model.stopAll() }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                 Divider()
@@ -45,6 +48,11 @@ struct CellarApp: App {
                 .preferredColorScheme(.dark)
         }
     }
+}
+
+/// Cellar keeps running with its window closed, so the overlay still works during a game.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
 
 struct RootView: View {

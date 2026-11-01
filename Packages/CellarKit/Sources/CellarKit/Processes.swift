@@ -4,15 +4,21 @@ import Foundation
 /// A running process that belongs to one of Cellar's Wine engines.
 public struct WineProcess: Sendable, Equatable {
     public var pid: pid_t
-    /// The Windows program, e.g. `steam.exe`, from the process's first argument.
+    /// The Windows program's file name, e.g. `steam.exe`, from the process's first argument.
     public var windowsName: String
+    /// The first argument in full, usually the program's Windows path.
+    public var windowsPath: String
     public var executable: String
 }
 
 public enum ProcessSnapshot {
-    /// Every process whose binary lives under `root` (our packs folder).
-    public static func wineProcesses(under root: URL) -> [WineProcess] {
-        let prefix = root.standardizedFileURL.resolvingSymlinksInPath().path
+    /// Wine processes of Cellar's engines. Some run from the packs folder, but CrossOver's loader
+    /// links (and Cellar's game bundles) put the binary in a `winetemp-` folder under the user's
+    /// temp directory. Each of those folders holds an `ntdll.so` link back to its engine, which
+    /// tells ours apart from another Wine app's. (Wine overwrites its argv and environment, so
+    /// those can't be used for this.)
+    public static func wineProcesses(paths: CellarPaths) -> [WineProcess] {
+        let packs = paths.packs.standardizedFileURL.resolvingSymlinksInPath().path
         var count = proc_listallpids(nil, 0)
         guard count > 0 else { return [] }
         var pids = [pid_t](repeating: 0, count: Int(count) + 64)
@@ -23,13 +29,19 @@ public enum ProcessSnapshot {
             let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
             guard length > 0 else { continue }
             let path = String(cString: buffer)
-            guard path.hasPrefix(prefix) else { continue }
-            let args = arguments(of: pid)
-            let first = args.first ?? path
+            guard path.hasPrefix(packs) || engineOwning(path).hasPrefix(packs) else { continue }
+            let first = arguments(of: pid).first ?? path
             let name = first.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? first
-            result.append(WineProcess(pid: pid, windowsName: name, executable: path))
+            result.append(WineProcess(pid: pid, windowsName: name, windowsPath: first, executable: path))
         }
         return result
+    }
+
+    /// The engine folder a `winetemp-` loader link belongs to, or "" for anything else.
+    static func engineOwning(_ executable: String) -> String {
+        guard executable.contains("/winetemp-") else { return "" }
+        let link = URL(fileURLWithPath: executable).deletingLastPathComponent().appending(path: "ntdll.so")
+        return link.resolvingSymlinksInPath().path
     }
 
     /// argv of another process of the same user, via `KERN_PROCARGS2`.

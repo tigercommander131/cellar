@@ -2,6 +2,8 @@ import Foundation
 
 /// Store artwork for a Steam app: portrait library capsule, wide hero, header and logo.
 public struct SteamArtwork: Codable, Sendable, Equatable {
+    /// The store's name for the app (used for games the user doesn't have installed).
+    public var name: String?
     public var capsule: URL?
     public var hero: URL?
     public var header: URL?
@@ -18,7 +20,9 @@ public actor ArtworkService {
     static let cdn = "https://shared.akamai.steamstatic.com/store_item_assets/"
 
     public init(paths: CellarPaths) {
-        cacheFile = paths.artwork.appending(path: "index.json")
+        // v2: earlier versions saved fallback addresses after network failures, which never load
+        // for newer games, so those entries are discarded.
+        cacheFile = paths.artwork.appending(path: "index-v2.json")
     }
 
     public func artwork(for appIds: [String]) async -> [String: SteamArtwork] {
@@ -26,12 +30,13 @@ public actor ArtworkService {
         let missing = appIds.filter { cache[$0] == nil }
         if !missing.isEmpty {
             for chunk in stride(from: 0, to: missing.count, by: 50).map({ Array(missing[$0..<min($0 + 50, missing.count)]) }) {
-                let found = (try? await fetch(chunk)) ?? [:]
+                // No answer (school Wi-Fi, offline): use a guess for now, but ask again next time.
+                guard let found = try? await fetch(chunk) else { continue }
                 for id in chunk { cache[id] = found[id] ?? Self.fallback(id) }
             }
             save()
         }
-        return appIds.reduce(into: [:]) { $0[$1] = cache[$1] }
+        return appIds.reduce(into: [:]) { $0[$1] = cache[$1] ?? Self.fallback($1) }
     }
 
     static func fallback(_ id: String) -> SteamArtwork {
@@ -55,6 +60,7 @@ public actor ArtworkService {
             struct Body: Decodable { var store_items: [Item]? }
             struct Item: Decodable {
                 var appid: Int?
+                var name: String?
                 var assets: Assets?
             }
             struct Assets: Decodable {
@@ -76,6 +82,7 @@ public actor ArtworkService {
             }
             let fallback = Self.fallback(String(appid))
             result[String(appid)] = SteamArtwork(
+                name: item.name,
                 capsule: url(a.library_capsule_2x ?? a.library_capsule) ?? fallback.capsule,
                 hero: url(a.library_hero) ?? fallback.hero,
                 header: url(a.header) ?? fallback.header,

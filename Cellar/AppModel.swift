@@ -56,6 +56,12 @@ final class AppModel {
     var friends: [SteamFriend] = []
     var friendsLoaded = false
     var toast: String?
+    /// The signed-in user's own game and how others can join it, from the Steam client.
+    var ownApp: String?
+    var ownLobby: String?
+    var ownConnect: String?
+    var invitedFriends: Set<String> = []
+    let overlay = OverlayController()
 
     private var refreshTask: Task<Void, Never>?
     private var friendsTask: Task<Void, Never>?
@@ -65,6 +71,7 @@ final class AppModel {
         friendsService = FriendsService(steam: core.steam)
         lowMemoryMode = core.lowMemoryMode(host: host)
         showFPS = core.loadState().showFPS ?? false
+        overlay.model = self
     }
 
     /// Installed games, most recently played first.
@@ -111,9 +118,7 @@ final class AppModel {
         let snapshot = await Task.detached { () -> ([SteamApp], Bool, Set<String>, String?) in
             let apps = core.steam.apps()
             let running = core.isSteamRunning()
-            let games = core.runningGames()
-            let ids = running && !games.isEmpty ? core.steam.runningAppIDs() : []
-            return (apps, running, ids, core.steam.signedInUser())
+            return (apps, running, core.runningAppIDs(among: apps), core.steam.signedInUser())
         }.value
         let (apps, running, runningIDs, user) = snapshot
         steamRunning = running
@@ -126,6 +131,8 @@ final class AppModel {
                  isRunning: runningIDs.contains(app.id), lastPlayed: played[app.id])
         }
         if let launching, runningIDs.contains(launching) { self.launching = nil }
+        overlay.setHotkeyActive(!runningIDs.isEmpty)
+        if runningIDs.isEmpty, overlay.isVisible { overlay.hide() }
     }
 
     // MARK: Setup
@@ -214,22 +221,92 @@ final class AppModel {
         friendsTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                let list = await friendsService.friendsWithStatus()
-                friends = list
-                friendsLoaded = true
+                // The helper is a Wine process: don't start one mid-game unless the overlay is open.
+                if runningGame == nil || overlay.isVisible { await refreshFriends() }
                 try? await Task.sleep(for: .seconds(60))
             }
         }
     }
 
-    func chat(with friend: SteamFriend) {
-        perform { try $0.launchSteam(.url(FriendsService.chatLink(friend))) }
+    /// Friends from the Steam client when it's running and online, otherwise from public profiles.
+    func refreshFriends() async {
+        let core = self.core
+        let snapshot = steamRunning && !steamOffline ? await Task.detached { try? core.bridgeSnapshot() }.value : nil
+        guard let snapshot else {
+            friends = await friendsService.friendsWithStatus()
+            ownApp = nil
+            ownLobby = nil
+            ownConnect = nil
+            friendsLoaded = true
+            return
+        }
+        let app = snapshot.app ?? 0
+        ownApp = app > 0 ? String(app) : nil
+        ownLobby = snapshot.lobby == "0" ? nil : snapshot.lobby
+        ownConnect = snapshot.connect?.isEmpty == false ? snapshot.connect : nil
+        let appIDs = (snapshot.friends ?? []).compactMap(\.app).filter { $0 > 0 }.map(String.init)
+        let art = await artworkService.artwork(for: appIDs)
+        var names = art.compactMapValues(\.name)
+        for game in games { names[game.id] = game.name }
+        friends = friendsService.friends(from: snapshot, gameNames: names)
+        friendsLoaded = true
     }
 
-    /// An installed game a friend is playing, matched by name.
-    func installedGame(named name: String?) -> Game? {
-        guard let name else { return nil }
-        return installedGames.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    /// One click: starts the game if needed (restarting Steam for its settings) and joins the friend.
+    func join(_ friend: SteamFriend) {
+        guard let appID = friend.appID, let link = friend.joinLink else { return }
+        overlay.hide()
+        guard let game = games.first(where: { $0.id == appID && $0.app.isInstalled }) else {
+            toast = "You don't have \(friend.game ?? "that game") yet. Steam will offer to install it."
+            perform { try $0.launchSteam(.install(appID: appID)) }
+            return
+        }
+        if let other = runningGame, other.id != appID {
+            alert = "Close \(other.name) first to join \(friend.name) in \(game.name)."
+            return
+        }
+        focusedGameID = appID
+        launching = appID
+        toast = "Joining \(friend.name) in \(game.name)…"
+        perform { try $0.launchSteam(.join(appID: appID, link: link)) } onError: { [weak self] in
+            self?.launching = nil
+            self?.openFriendsWindow(after: friend)
+        }
+    }
+
+    /// Asks Steam to send a game invite for the game being played right now.
+    func invite(_ friend: SteamFriend) {
+        Task {
+            await refreshFriends()
+            guard let appID = ownApp else {
+                alert = "Start a game first, then invite \(friend.name)."
+                return
+            }
+            let connect: String? = ownLobby.map { "+connect_lobby \($0)" } ?? ownConnect
+            guard let connect else {
+                toast = "This game isn't sharing a lobby yet. Host one in the game, then invite again."
+                return
+            }
+            let core = self.core
+            let friendID = friend.id
+            do {
+                try await Task.detached { try core.invite(friendID: friendID, appID: appID, connect: connect) }.value
+                invitedFriends.insert(friend.id)
+                toast = "Invite sent to \(friend.name)."
+            } catch {
+                openFriendsWindow(after: friend)
+            }
+        }
+    }
+
+    /// The fallback when Join or Invite can't complete: Steam's own friends window.
+    private func openFriendsWindow(after friend: SteamFriend) {
+        toast = "That didn't work. Opening Steam's chat with \(friend.name) instead."
+        chat(with: friend)
+    }
+
+    func chat(with friend: SteamFriend) {
+        perform { try $0.launchSteam(.url(FriendsService.chatLink(friend))) }
     }
 
     // MARK: Links (cellar://play/<appid> from Dock shortcuts)
@@ -237,15 +314,12 @@ final class AppModel {
     func handle(_ url: URL) {
         guard url.scheme == "cellar", phase == .ready else { return }
         let parts = [url.host()].compactMap { $0 } + url.pathComponents.filter { $0 != "/" }
-        guard parts.first == "play", parts.count >= 2 else { return }
-        let id = parts[1]
-        focusedGameID = id
+        // Any web page can open a cellar:// link, so it can only start games already installed.
+        guard parts.first == "play", parts.count == 2,
+              let game = installedGames.first(where: { $0.id == parts[1] }) else { return }
+        focusedGameID = game.id
         tab = .home
-        if let game = games.first(where: { $0.id == id }) {
-            play(game)
-        } else {
-            perform { try $0.launchSteam(.play(appID: id, args: [])) }
-        }
+        play(game)
     }
 
     func addToDock(_ game: Game) {

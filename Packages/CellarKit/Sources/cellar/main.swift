@@ -19,6 +19,7 @@ usage: cellar <command> [options]
   steam open | list | stop
   steam play <appid> [args...]   Launch a game through Steam with its profile
   steam install <appid>          Ask Steam to install a game
+  friends                        Online friends and joinable games (needs CELLAR_BRIDGE)
   processes                      List running Windows programs
   stop                           Force-quit everything Cellar started
 
@@ -145,6 +146,13 @@ do {
                 print("\(app.id)\t\(app.name)\t\(state)\t\(core.profiles.profile(for: app.id).backend.rawValue)")
             }
         default: fail(usage)
+        }
+
+    case "friends":
+        let snapshot = try core.bridgeSnapshot()
+        print("In game: \(snapshot.app ?? 0), lobby \(snapshot.lobby ?? "0"), connect \(snapshot.connect ?? "")")
+        for f in snapshot.friends ?? [] where f.state != 0 {
+            print("\(f.id)\tstate \(f.state)\tapp \(f.app ?? 0)\tlobby \(f.lobby ?? "0")\t\(f.name)")
         }
 
     case "processes":

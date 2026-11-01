@@ -13,6 +13,26 @@ public struct SteamFriend: Sendable, Equatable, Identifiable, Codable {
     /// The game they're in, when `state == .inGame`.
     public var game: String?
     public var statusText: String?
+    /// The Steam app they're in, and what's needed to join them (from the Steam client).
+    public var appID: String?
+    public var lobby: String?
+    public var connect: String?
+
+    /// The link Steam itself uses to join this friend, if their game can be joined.
+    public var joinLink: String? {
+        guard let appID, appID.allSatisfy(\.isNumber), id.allSatisfy(\.isNumber) else { return nil }
+        if let lobby, lobby != "0", !lobby.isEmpty, lobby.allSatisfy(\.isNumber) {
+            return "steam://joinlobby/\(appID)/\(lobby)/\(id)"
+        }
+        if let connect, !connect.isEmpty {
+            // Same characters JavaScript's encodeURIComponent keeps, which is what Steam's client uses.
+            let kept = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.!~*'()"))
+            if let encoded = connect.addingPercentEncoding(withAllowedCharacters: kept) {
+                return "steam://rungame/\(appID)/\(id)/\(encoded)"
+            }
+        }
+        return nil
+    }
 
     public var sortRank: Int {
         switch state {
@@ -58,11 +78,32 @@ public actor FriendsService {
                 URL(string: "https://avatars.fastly.steamstatic.com/\(hash)_medium.jpg")
             }
             return SteamFriend(id: String(account + Self.steamID64Base), name: name, avatar: avatar,
-                               state: .unknown, game: nil, statusText: nil)
+                               state: .unknown, game: nil, statusText: nil, appID: nil, lobby: nil, connect: nil)
         }
     }
 
-    /// Known friends with fresh status, people in games first. Four profile lookups at a time.
+    /// The Steam client's own view of friends, with avatars from its local cache. People in games first.
+    /// `gameNames` maps app IDs to names.
+    public nonisolated func friends(from snapshot: BridgeSnapshot, gameNames: [String: String]) -> [SteamFriend] {
+        let avatars = Dictionary(knownFriends().map { ($0.id, $0.avatar) }) { first, _ in first }
+        return (snapshot.friends ?? []).map { friend in
+            let appID = friend.app.flatMap { $0 > 0 ? String($0) : nil }
+            let state: SteamFriend.State
+            if appID != nil { state = .inGame } else {
+                switch friend.state {
+                case 0: state = .offline
+                case 2, 3, 4: state = .away
+                default: state = .online
+                }
+            }
+            return SteamFriend(id: friend.id, name: friend.name, avatar: avatars[friend.id] ?? nil, state: state,
+                               game: appID.flatMap { gameNames[$0] }, statusText: nil, appID: appID,
+                               lobby: friend.lobby, connect: friend.connect)
+        }.sorted { ($0.sortRank, $0.name.lowercased()) < ($1.sortRank, $1.name.lowercased()) }
+    }
+
+    /// Known friends with fresh status from public profiles (when Steam isn't running), people in
+    /// games first. Four profile lookups at a time.
     public func friendsWithStatus(limit: Int = 60) async -> [SteamFriend] {
         let known = Array(knownFriends().prefix(limit))
         var result: [SteamFriend] = []

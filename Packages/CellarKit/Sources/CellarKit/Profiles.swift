@@ -16,6 +16,8 @@ public struct GameProfile: Codable, Sendable, Equatable {
     public var retina: Bool?
     /// Apple's Metal performance overlay (FPS, frame time, GPU) in the game.
     public var metalHUD: Bool?
+    /// Create `steam_appid.txt` in the game's folder before launch, for games that need it.
+    public var writeSteamAppID: Bool?
     public var notes: String?
 
     public init(appId: String) { self.appId = appId }
@@ -43,6 +45,7 @@ public struct GameProfile: Codable, Sendable, Equatable {
         if let v = other.registry { p.registry = (p.registry ?? []) + v }
         if let v = other.retina { p.retina = v }
         if let v = other.metalHUD { p.metalHUD = v }
+        if let v = other.writeSteamAppID { p.writeSteamAppID = v }
         if let v = other.notes { p.notes = v }
         return p
     }

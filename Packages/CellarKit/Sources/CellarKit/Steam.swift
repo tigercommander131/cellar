@@ -63,6 +63,8 @@ public struct Steam: Sendable {
         case install(appID: String)
         /// A steam:// link handed to the running Windows Steam (a Mac `open` would reach Mac Steam).
         case url(String)
+        /// Joins a friend's game with a validated steam:// link, using that game's settings.
+        case join(appID: String, link: String)
     }
 
     /// `-cef-disable-gpu` keeps Steam's Chromium UI on the CPU, which is what renders under Wine.
@@ -74,7 +76,7 @@ public struct Steam: Sendable {
         case .silent: return base + ["-silent"]
         case .play(let id, let args): return base + (lowMemory ? ["-silent"] : []) + ["-applaunch", id] + args
         case .install(let id): return base + ["steam://install/\(id)"]
-        case .url(let link): return base + [link]
+        case .url(let link), .join(_, let link): return base + [link]
         }
     }
 
@@ -212,21 +214,24 @@ public struct Steam: Sendable {
         return text.suffix(200_000).contains("System startup time:")
     }
 
-    /// The app IDs Steam reports as running, from `gameprocess_log.txt`.
-    public func runningAppIDs() -> Set<String> {
-        let log = steamDir.appending(path: "logs/gameprocess_log.txt")
-        guard let text = try? String(contentsOf: log, encoding: .utf8) else { return [] }
-        var running: [String: Set<String>] = [:]
-        for line in text.split(separator: "\n").suffix(4000) {
-            // "AppID 730 adding PID 1234 as a tracked process"  /  "AppID 730 no longer tracking PID 1234"
-            let parts = line.split(separator: " ")
-            guard let idx = parts.firstIndex(of: "AppID"), idx + 1 < parts.count else { continue }
-            let app = String(parts[idx + 1])
-            guard let pidIdx = parts.firstIndex(of: "PID"), pidIdx + 1 < parts.count else { continue }
-            let pid = String(parts[pidIdx + 1].trimmingCharacters(in: .punctuationCharacters))
-            if line.contains("adding PID") { running[app, default: []].insert(pid) }
-            if line.contains("no longer tracking PID") { running[app]?.remove(pid) }
+    /// Which apps have a program running from their install folder, given Windows paths of running
+    /// programs. This reads real processes: Steam's own log goes stale after a crash and stays
+    /// quiet in offline mode.
+    public static func appIDs(_ apps: [SteamApp], runningFrom paths: [String]) -> Set<String> {
+        let lowered = paths.map { $0.lowercased() }
+        return Set(apps.filter { app in
+            guard !app.installDir.isEmpty else { return false }
+            let folder = "\\steamapps\\common\\\(app.installDir.lowercased())\\"
+            return lowered.contains { $0.contains(folder) }
+        }.map(\.id))
+    }
+
+    /// Some games insist on reading their own ID from this file (Nuclear Option hangs without it).
+    public func writeSteamAppID(_ appID: String) {
+        guard let app = apps().first(where: { $0.id == appID }), !app.installDir.isEmpty else { return }
+        let file = URL(fileURLWithPath: app.libraryPath).appending(path: "common/\(app.installDir)/steam_appid.txt")
+        if !FileManager.default.fileExists(atPath: file.path) {
+            try? appID.write(to: file, atomically: true, encoding: .utf8)
         }
-        return Set(running.filter { !$0.value.isEmpty }.keys)
     }
 }

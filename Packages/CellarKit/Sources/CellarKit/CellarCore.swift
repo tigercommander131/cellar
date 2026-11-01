@@ -136,7 +136,7 @@ public struct CellarCore: Sendable {
     // MARK: Steam and games
 
     public func runningProcesses() -> [WineProcess] {
-        ProcessSnapshot.wineProcesses(under: paths.packs)
+        ProcessSnapshot.wineProcesses(paths: paths)
     }
 
     public func isSteamRunning() -> Bool {
@@ -148,8 +148,14 @@ public struct CellarCore: Sendable {
         let ignored: Set<String> = ["steam.exe", "steamwebhelper.exe", "steamservice.exe", "steamerrorreporter.exe",
                                     "services.exe", "winedevice.exe", "plugplay.exe", "explorer.exe", "svchost.exe",
                                     "rpcss.exe", "conhost.exe", "start.exe", "wineboot.exe", "tabtip.exe", "wine",
-                                    "wine-preloader", "wineserver", "gameoverlayui.exe", "gameoverlayui64.exe"]
+                                    "wine-preloader", "wineserver", "gameoverlayui.exe", "gameoverlayui64.exe",
+                                    "cellar-bridge.exe"]
         return runningProcesses().filter { !ignored.contains($0.windowsName.lowercased()) }
+    }
+
+    /// Which of `apps` have a program running from their install folder right now.
+    public func runningAppIDs(among apps: [SteamApp]) -> Set<String> {
+        Steam.appIDs(apps, runningFrom: runningGames().map(\.windowsPath))
     }
 
     public func launchConfig(for profile: GameProfile?) -> LaunchConfig {
@@ -175,17 +181,24 @@ public struct CellarCore: Sendable {
         guard steam.isInstalled else { throw CellarError("Steam isn't installed yet. Run setup first.") }
         let appId: String? = {
             switch mode {
-            case .play(let id, _), .install(let id): id
+            case .play(let id, _), .install(let id), .join(let id, _): id
             default: nil
             }
         }()
+        // Playing or joining starts a game, which inherits Steam's settings.
+        let startsGame: Bool = {
+            switch mode {
+            case .play, .join: true
+            default: false
+            }
+        }()
         let profile = appId.map { profiles.profile(for: $0) }
-        if case .play = mode, let need = profile?.minRAMGB, HostCheck.current().memoryGB < need {
+        if startsGame, let need = profile?.minRAMGB, HostCheck.current().memoryGB < need {
             // The UI warns before calling this; the CLI just notes it.
             FileHandle.standardError.write(Data("Note: this game wants \(need) GB of memory.\n".utf8))
         }
         var config = launchConfig(for: profile)
-        if case .play = mode {} else if isSteamRunning(), let session = loadState().steamSession {
+        if !startsGame, isSteamRunning(), let session = loadState().steamSession {
             // Opening or installing never needs a restart; keep what's running.
             config.backend = session.backend
         }
@@ -194,7 +207,7 @@ public struct CellarCore: Sendable {
         var state = loadState()
 
         if isSteamRunning() {
-            if state.steamSession?.fingerprint != fp, case .play = mode {
+            if state.steamSession?.fingerprint != fp, startsGame {
                 let games = runningGames()
                 guard games.isEmpty else {
                     throw CellarError("Close \(games.map(\.windowsName).joined(separator: ", ")) first: Steam has to restart with this game's settings.")
@@ -212,6 +225,7 @@ public struct CellarCore: Sendable {
             }
         }
         steam.clearStaleLocks()
+        if startsGame, profile?.writeSteamAppID == true, let appId { steam.writeSteamAppID(appId) }
 
         let wine = steamBottle.wine(engine: engine)
         var finalMode = mode
@@ -220,7 +234,7 @@ public struct CellarCore: Sendable {
         if !isSteamRunning() {
             state.steamSession = .init(fingerprint: fp, backend: config.backend, started: Date())
         }
-        if case .play(let id, _) = mode { state.lastPlayed = (state.lastPlayed ?? [:]).merging([id: Date()]) { $1 } }
+        if startsGame, let appId { state.lastPlayed = (state.lastPlayed ?? [:]).merging([appId: Date()]) { $1 } }
         try saveState(state)
         _ = try wine.start(finalArgs, config: config, log: log("steam"), workingDirectory: steam.steamDir)
     }

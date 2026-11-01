@@ -67,17 +67,13 @@ func tempDir() throws -> URL {
         #expect(Steam.arguments(.install(appID: "730")).last == "steam://install/730")
     }
 
-    @Test func runningAppsFromGameProcessLog() throws {
-        let root = try tempDir()
-        let steam = Steam(bottle: Bottle(paths: CellarPaths(root: root), name: "steam"))
-        let logs = steam.steamDir.appending(path: "logs", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
-        try """
-        [2026-10-29 10:00:00] AppID 730 adding PID 1234 as a tracked process "cs2.exe"
-        [2026-10-29 10:00:01] AppID 9 adding PID 55 as a tracked process "x.exe"
-        [2026-10-29 10:30:00] AppID 9 no longer tracking PID 55, exit code 0
-        """.write(to: logs.appending(path: "gameprocess_log.txt"), atomically: true, encoding: .utf8)
-        #expect(steam.runningAppIDs() == ["730"])
+    @Test func runningAppsComeFromInstallFolders() {
+        func app(_ id: String, _ dir: String) -> SteamApp {
+            SteamApp(id: id, name: dir, installDir: dir, libraryPath: "", stateFlags: 4, sizeOnDisk: 0, bytesToDownload: 0, bytesDownloaded: 0)
+        }
+        let apps = [app("730", "Counter-Strike Global Offensive"), app("9", "Teardown"), app("1", "Tear")]
+        let running = [#"C:\Program Files (x86)\Steam\steamapps\common\Teardown\teardown.exe"#, #"C:\windows\system32\services.exe"#]
+        #expect(Steam.appIDs(apps, runningFrom: running) == ["9"])
     }
 }
 
@@ -199,6 +195,29 @@ func tempDir() throws -> URL {
     @Test func privateProfilesStayUnknown() {
         let p = FriendsService.parseProfile("<profile><steamID>x</steamID><onlineState>online</onlineState><privacyState>private</privacyState></profile>")
         #expect(p.state == .unknown)
+    }
+
+    @Test func joinLinksMatchSteamsOwnFormat() {
+        var friend = SteamFriend(id: "765", name: "x", avatar: nil, state: .inGame, game: nil, statusText: nil,
+                                 appID: "730", lobby: "109", connect: "+connect 1.2.3.4:27015")
+        #expect(friend.joinLink == "steam://joinlobby/730/109/765")
+        friend.lobby = "0"
+        #expect(friend.joinLink == "steam://rungame/730/765/%2Bconnect%201.2.3.4%3A27015")
+        friend.connect = ""
+        #expect(friend.joinLink == nil)
+        friend.lobby = "1;rm"
+        #expect(friend.joinLink == nil)
+    }
+
+    @Test func snapshotBecomesFriends() throws {
+        let json = #"{"ok":true,"me":"1","app":0,"lobby":"0","connect":"","friends":[{"id":"2","name":"b","state":1},{"id":"3","name":"a","state":1,"app":730,"lobby":"9","connect":""},{"id":"4","name":"c","state":0}]}"#
+        let snapshot = try JSONDecoder().decode(BridgeSnapshot.self, from: Data(json.utf8))
+        let service = FriendsService(steam: Steam(bottle: Bottle(paths: CellarPaths(root: try tempDir()), name: "steam")))
+        let list = service.friends(from: snapshot, gameNames: ["730": "CS2"])
+        #expect(list.map(\.id) == ["3", "2", "4"])
+        #expect(list[0].game == "CS2")
+        #expect(list[0].joinLink == "steam://joinlobby/730/9/3")
+        #expect(list[2].state == .offline)
     }
 
     @Test func steamLinksGoToWindowsSteam() {

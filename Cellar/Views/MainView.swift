@@ -87,7 +87,10 @@ struct TopBar: View {
             }
             .padding(3)
             .background(Capsule().fill(.black.opacity(0.25)))
-            Spacer()
+            // The title bar is hidden, so the empty part of the top bar moves the window.
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(WindowDragGesture())
             if model.runningGame != nil || model.launching != nil {
                 Button { model.stopAll() } label: { Label("Force Quit", systemImage: "stop.fill") }
                     .buttonStyle(GlassButtonStyle())
@@ -531,10 +534,10 @@ struct FriendRow: View {
                     .foregroundStyle(friend.state == .inGame ? .green : .secondary)
             }
             Spacer()
-            if friend.state == .inGame, let game = model.installedGame(named: friend.game) {
-                Button("Play") { model.play(game) }
+            if friend.joinLink != nil {
+                Button("Join") { model.join(friend) }
                     .buttonStyle(PillButtonStyle())
-                    .help("You have \(game.name) too")
+                    .help("Join \(friend.name) in \(friend.game ?? "their game")")
             }
             Button { model.chat(with: friend) } label: { Image(systemName: "bubble.left.fill") }
                 .buttonStyle(GlassButtonStyle())
