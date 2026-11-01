@@ -1,10 +1,6 @@
 # Cellar 2.0: what was built, and what still needs a person
 
-Built overnight on 2026-11-02 from Joel's picks. **Installed on Joel's Mac only, not released.** To release:
-
-```
-REPO=tigercommander131/cellar scripts/release-app.sh 2.0.0 5
-```
+Built overnight on 2026-11-02 from Joel's picks, and **released to everyone later that day** with the items under "Not proven yet" still open.
 
 ## Decisions
 
