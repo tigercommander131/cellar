@@ -68,15 +68,15 @@ public struct Steam: Sendable {
     }
 
     /// `-cef-disable-gpu` keeps Steam's Chromium UI on the CPU, which is what renders under Wine.
-    public static func arguments(_ mode: Mode, steamArgs: [String] = [], lowMemory: Bool = false) -> [String] {
-        var base = [#"C:\Program Files (x86)\Steam\steam.exe"#, "-cef-disable-gpu", "-cef-disable-gpu-compositing"] + steamArgs
-        if lowMemory { base += ["-cef-single-process"] }
+    public static func arguments(_ mode: Mode, steamArgs: [String] = [], hideSteam: Bool = false) -> [String] {
+        let base = [#"C:\Program Files (x86)\Steam\steam.exe"#, "-cef-disable-gpu", "-cef-disable-gpu-compositing"] + steamArgs
         switch mode {
         case .open: return base
         case .silent: return base + ["-silent"]
-        case .play(let id, let args): return base + (lowMemory ? ["-silent"] : []) + ["-applaunch", id] + args
+        case .play(let id, let args): return base + (hideSteam ? ["-silent"] : []) + ["-applaunch", id] + args
         case .install(let id): return base + ["steam://install/\(id)"]
-        case .url(let link), .join(_, let link): return base + [link]
+        case .url(let link): return base + [link]
+        case .join(_, let link): return base + (hideSteam ? ["-silent"] : []) + [link]
         }
     }
 

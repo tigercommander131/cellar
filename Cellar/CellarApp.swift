@@ -70,6 +70,13 @@ struct RootView: View {
                 MainView()
             }
         }
+        .alert("You're on battery", isPresented: Binding(get: { model.batteryPromptGame != nil }, set: { if !$0 { model.batteryPromptGame = nil } })) {
+            Button("Use Battery Preset") { model.answerBatteryPrompt(usePreset: true) }
+            Button("Keep My Settings") { model.answerBatteryPrompt(usePreset: false) }
+            Button("Don't Ask Again") { model.answerBatteryPrompt(usePreset: false, dontAskAgain: true) }
+        } message: {
+            Text("The Battery preset limits \(model.batteryPromptGame?.name ?? "this game") to 30 fps for this session, which saves a lot of power.")
+        }
         .alert("Cellar", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
             Button("OK") { model.alert = nil }
         } message: {

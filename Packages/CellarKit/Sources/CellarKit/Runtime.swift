@@ -8,6 +8,9 @@ public enum GraphicsBackend: String, Codable, Sendable, CaseIterable {
     /// Wine's own OpenGL-based Direct3D. Slow, but works for old games.
     case wined3d
 
+    /// Whether Cellar can limit this backend's frame rate.
+    public var supportsFrameCap: Bool { self == .dxmt }
+
     public var displayName: String {
         switch self {
         case .d3dmetal: "D3DMetal (DX11/12)"

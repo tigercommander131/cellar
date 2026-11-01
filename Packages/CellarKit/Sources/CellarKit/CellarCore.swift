@@ -3,8 +3,13 @@ import Foundation
 
 /// Settings and session facts kept in `state.json`.
 public struct CellarState: Codable, Sendable, Equatable {
-    /// nil = decide from RAM (on for 8 GB Macs).
-    public var lowMemoryMode: Bool?
+    /// Keep Steam's window closed while a game runs (nil means on). It draws on the CPU, so this
+    /// frees CPU, memory and battery.
+    public var hideSteamWhilePlaying: Bool?
+    /// Don't ask about the Battery preset when pressing Play unplugged.
+    public var skipBatteryPrompt: Bool?
+    /// The Retina setting last written to the bottle (nil means off).
+    public var retina: Bool?
     public var steamSession: SteamSession?
     /// Default for games whose profile doesn't say: show the Metal performance overlay.
     public var showFPS: Bool?
@@ -50,9 +55,7 @@ public struct CellarCore: Sendable {
         try encoder.encode(state).write(to: paths.state, options: .atomic)
     }
 
-    public func lowMemoryMode(host: HostCheck = .current()) -> Bool {
-        loadState().lowMemoryMode ?? host.prefersLowMemoryMode
-    }
+    public var hideSteamWhilePlaying: Bool { loadState().hideSteamWhilePlaying ?? true }
 
     public func log(_ name: String) -> URL {
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
@@ -158,12 +161,22 @@ public struct CellarCore: Sendable {
         Steam.appIDs(apps, runningFrom: runningGames().map(\.windowsPath))
     }
 
-    public func launchConfig(for profile: GameProfile?) -> LaunchConfig {
+    public func launchConfig(for profile: GameProfile?, preset: GamePreset? = nil) -> LaunchConfig {
         let profile = profile ?? GameProfile(appId: "")
         var config = LaunchConfig(backend: profile.backend)
         config.metalHUD = profile.metalHUD ?? loadState().showFPS ?? false
         config.extraEnvironment = profile.env ?? [:]
+        // Not read by Wine; part of the settings fingerprint so Steam restarts when Retina changes.
+        if profile.retina == true { config.extraEnvironment["CELLAR_RETINA"] = "1" }
         config.dllOverrides = profile.dllOverrides ?? [:]
+        if profile.steamOverlay == true {
+            config.dllOverrides["gameoverlayrenderer,gameoverlayrenderer64"] = "n,b"
+        }
+        // Without a preset or an explicit cap, nothing changes.
+        let cap = preset?.frameCap ?? profile.frameCap ?? profile.preset?.frameCap ?? 0
+        if cap > 0, config.backend.supportsFrameCap {
+            config.extraEnvironment["DXMT_CONFIG"] = "d3d11.preferredMaxFrameRate=\(cap);"
+        }
         return config
     }
 
@@ -177,7 +190,8 @@ public struct CellarCore: Sendable {
     }
 
     /// Opens Steam, plays or installs a game. Restarts Steam if it runs with the wrong settings.
-    public func launchSteam(_ mode: Steam.Mode) throws {
+    /// `preset` applies to this launch only (the Battery prompt uses it).
+    public func launchSteam(_ mode: Steam.Mode, preset: GamePreset? = nil) throws {
         guard steam.isInstalled else { throw CellarError("Steam isn't installed yet. Run setup first.") }
         let appId: String? = {
             switch mode {
@@ -197,7 +211,7 @@ public struct CellarCore: Sendable {
             // The UI warns before calling this; the CLI just notes it.
             FileHandle.standardError.write(Data("Note: this game wants \(need) GB of memory.\n".utf8))
         }
-        var config = launchConfig(for: profile)
+        var config = launchConfig(for: profile, preset: preset)
         if !startsGame, isSteamRunning(), let session = loadState().steamSession {
             // Opening or installing never needs a restart; keep what's running.
             config.backend = session.backend
@@ -219,9 +233,11 @@ public struct CellarCore: Sendable {
         try steamBottle.prepare(for: config.backend)
         if let profile {
             var values = profile.registry ?? []
-            if let retina = profile.retina { values.append(.retina(retina)) }
+            let retina = profile.retina ?? false
+            if retina != (state.retina ?? false) { values.append(.retina(retina)) }
             if !isSteamRunning(), !values.isEmpty {
                 try steamBottle.importRegistry(values, engine: engine, log: log("registry"))
+                state.retina = retina
             }
         }
         steam.clearStaleLocks()
@@ -230,7 +246,7 @@ public struct CellarCore: Sendable {
         let wine = steamBottle.wine(engine: engine)
         var finalMode = mode
         if case .play(let id, let extra) = mode { finalMode = .play(appID: id, args: extra + (profile?.gameArgs ?? [])) }
-        let finalArgs = Steam.arguments(finalMode, steamArgs: profile?.steamArgs ?? [], lowMemory: lowMemoryMode())
+        let finalArgs = Steam.arguments(finalMode, steamArgs: profile?.steamArgs ?? [], hideSteam: hideSteamWhilePlaying)
         if !isSteamRunning() {
             state.steamSession = .init(fingerprint: fp, backend: config.backend, started: Date())
         }

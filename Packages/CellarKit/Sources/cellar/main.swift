@@ -70,7 +70,7 @@ do {
         let host = HostCheck.current(volume: core.paths.root)
         print("Data folder: \(core.paths.root.path)")
         print("Mac: \(host.memoryGB) GB RAM, macOS \(host.macOSVersion.majorVersion).\(host.macOSVersion.minorVersion), Rosetta \(host.rosettaInstalled ? "installed" : "missing"), \(host.availableDiskBytes / 1_000_000_000) GB free")
-        print("Low-memory mode: \(core.lowMemoryMode(host: host) ? "on" : "off")")
+        print("Hide Steam while playing: \(core.hideSteamWhilePlaying ? "on" : "off")")
         for problem in host.problems { print("  ! \(problem)") }
         for kind in PackKind.allCases {
             let p = core.packs.installed(kind)

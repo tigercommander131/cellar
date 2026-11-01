@@ -96,7 +96,7 @@ struct SetupView: View {
             ChecklistRow(title: "Apple silicon, macOS \(host.macOSVersion.majorVersion)", state: host.isAppleSilicon && host.macOSVersion.majorVersion >= 26 ? .done : .failed)
             ChecklistRow(title: host.rosettaInstalled ? "Rosetta 2 installed" : "Rosetta 2 will be installed", state: host.rosettaInstalled ? .done : .pending)
             ChecklistRow(title: "\(host.availableDiskBytes / 1_000_000_000) GB free", state: host.hasRoomForSetup ? .done : .failed)
-            ChecklistRow(title: "\(host.memoryGB) GB memory" + (host.prefersLowMemoryMode ? " · low-memory mode on" : ""), state: .done)
+            ChecklistRow(title: "\(host.memoryGB) GB memory", state: .done)
         }
     }
 

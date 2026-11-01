@@ -11,15 +11,25 @@ and launches each game with the right settings.
 
 1. Download `Cellar.zip` from the [latest release](https://github.com/tigercommander131/cellar/releases/latest)
    and drag **Cellar** into Applications.
-2. The first time, **right-click Cellar → Open → Open**. (It isn't signed with a paid Apple
-   account, so macOS asks once.) If macOS still refuses: System Settings → Privacy & Security →
-   scroll down → **Open Anyway**.
+2. Open Cellar. It isn't signed with a paid Apple account, so macOS blocks it the first time. Go to
+   **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. You only do this
+   once. (On some versions, **right-click Cellar → Open** also works.)
 3. Click **Set Up**. Cellar checks your Mac, downloads about 1.5 GB, and installs Steam.
 4. Sign in to Steam in the window that opens, install a game, and press **Play** in Cellar.
 
 Needs macOS 26 or later, Apple Silicon, and Rosetta 2 (Cellar installs it if missing).
-Macs with 8 GB of memory get **low-memory mode** automatically: Steam's window closes while
-a game runs.
+Steam's window stays closed while a game runs, which saves CPU, memory and battery. You can change
+that in Settings.
+
+## In a game
+
+Press **Shift+Tab** to open Cellar's overlay: see who's online, **Join** a friend's game, **Invite**
+friends to yours, or Force Quit. Friends also have a Join button in the Friends tab. Join works in games
+that use Steam's lobbies; games with their own server browser are joined inside the game. Steam's own
+overlay stays off unless you switch it on for a game, in its settings, under Advanced.
+
+Each game also has a **Quality / Balanced / Battery** preset. Frame limits work on DXMT games; on
+D3DMetal games, use the game's own limit or vsync.
 
 Cellar updates itself, and game fixes arrive automatically.
 

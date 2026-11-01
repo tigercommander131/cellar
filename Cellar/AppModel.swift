@@ -47,8 +47,10 @@ final class AppModel {
     var steamOffline = false
     var launching: String?
     var alert: String?
-    var lowMemoryMode: Bool
+    var hideSteamWhilePlaying: Bool
     var showFPS: Bool
+    /// The game waiting on the "use Battery preset?" question.
+    var batteryPromptGame: Game?
 
     var tab: Tab = .home
     var focusedGameID: String?
@@ -69,7 +71,7 @@ final class AppModel {
     init() {
         artworkService = ArtworkService(paths: core.paths)
         friendsService = FriendsService(steam: core.steam)
-        lowMemoryMode = core.lowMemoryMode(host: host)
+        hideSteamWhilePlaying = core.hideSteamWhilePlaying
         showFPS = core.loadState().showFPS ?? false
         overlay.model = self
     }
@@ -194,11 +196,32 @@ final class AppModel {
     }
 
     func play(_ game: Game) {
+        // On battery, offer the lower frame cap, where this game's graphics backend can apply one.
+        if HostCheck.isOnBattery, game.profile.backend.supportsFrameCap, game.profile.preset != .battery,
+           core.loadState().skipBatteryPrompt != true {
+            batteryPromptGame = game
+            return
+        }
+        launch(game)
+    }
+
+    func answerBatteryPrompt(usePreset: Bool, dontAskAgain: Bool = false) {
+        guard let game = batteryPromptGame else { return }
+        batteryPromptGame = nil
+        if dontAskAgain {
+            var state = core.loadState()
+            state.skipBatteryPrompt = true
+            try? core.saveState(state)
+        }
+        launch(game, preset: usePreset ? .battery : nil)
+    }
+
+    private func launch(_ game: Game, preset: GamePreset? = nil) {
         if let need = game.profile.minRAMGB, host.memoryGB < need {
             alert = "\(game.name) wants \(need) GB of memory and this Mac has \(host.memoryGB) GB. It may stutter or close."
         }
         launching = game.id
-        perform { try $0.launchSteam(.play(appID: game.id, args: [])) } onError: { [weak self] in self?.launching = nil }
+        perform { try $0.launchSteam(.play(appID: game.id, args: []), preset: preset) } onError: { [weak self] in self?.launching = nil }
         Task {
             try? await Task.sleep(for: .seconds(90))
             if launching == game.id { launching = nil }
@@ -334,9 +357,10 @@ final class AppModel {
         }
     }
 
-    func setMetalHUD(_ on: Bool?, for game: Game) {
+    /// Changes this Mac's settings for a game. They apply the next time it starts.
+    func updateSettings(for game: Game, _ change: (inout GameProfile) -> Void) {
         var override = core.profiles.override(game.id) ?? GameProfile(appId: game.id)
-        override.metalHUD = on
+        change(&override)
         saveOverride(override, for: game)
     }
 
@@ -364,16 +388,10 @@ final class AppModel {
         Task.detached { core.stopEverything() }
     }
 
-    func setBackend(_ backend: GraphicsBackend?, for game: Game) {
-        var override = core.profiles.override(game.id) ?? GameProfile(appId: game.id)
-        override.graphics = backend
-        saveOverride(override, for: game)
-    }
-
-    func setLowMemoryMode(_ on: Bool) {
-        lowMemoryMode = on
+    func setHideSteamWhilePlaying(_ on: Bool) {
+        hideSteamWhilePlaying = on
         var state = core.loadState()
-        state.lowMemoryMode = on == host.prefersLowMemoryMode ? nil : on
+        state.hideSteamWhilePlaying = on ? nil : false
         try? core.saveState(state)
     }
 

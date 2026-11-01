@@ -1,5 +1,28 @@
 import Foundation
 
+/// A one-choice summary of a game's performance settings.
+public enum GamePreset: String, Codable, Sendable, CaseIterable, Identifiable {
+    case quality, balanced, battery
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .quality: "Quality"
+        case .balanced: "Balanced"
+        case .battery: "Battery"
+        }
+    }
+
+    /// Frame limit in fps, where the graphics backend can apply one. 0 means no limit.
+    public var frameCap: Int {
+        switch self {
+        case .quality: 0
+        case .balanced: 60
+        case .battery: 30
+        }
+    }
+}
+
 /// Per-game settings, keyed by Steam app ID. Built-in ones ship in the profiles pack;
 /// a user's local overrides sit in `profiles/overrides/<appId>.json` and win field by field.
 public struct GameProfile: Codable, Sendable, Equatable {
@@ -18,6 +41,12 @@ public struct GameProfile: Codable, Sendable, Equatable {
     public var metalHUD: Bool?
     /// Create `steam_appid.txt` in the game's folder before launch, for games that need it.
     public var writeSteamAppID: Bool?
+    public var preset: GamePreset?
+    /// Overrides the preset's frame limit. 0 means no limit.
+    public var frameCap: Int?
+    /// Allow Steam's real overlay in this game. Off by default: Cellar's overlay is the normal one,
+    /// but a game's own "Invite" button only works with Steam's.
+    public var steamOverlay: Bool?
     public var notes: String?
 
     public init(appId: String) { self.appId = appId }
@@ -46,6 +75,9 @@ public struct GameProfile: Codable, Sendable, Equatable {
         if let v = other.retina { p.retina = v }
         if let v = other.metalHUD { p.metalHUD = v }
         if let v = other.writeSteamAppID { p.writeSteamAppID = v }
+        if let v = other.preset { p.preset = v }
+        if let v = other.frameCap { p.frameCap = v }
+        if let v = other.steamOverlay { p.steamOverlay = v }
         if let v = other.notes { p.notes = v }
         return p
     }

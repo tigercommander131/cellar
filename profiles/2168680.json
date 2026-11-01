@@ -1,0 +1,8 @@
+{
+  "appId": "2168680",
+  "title": "Nuclear Option",
+  "graphics": "d3dmetal",
+  "windowsVersion": "win10",
+  "writeSteamAppID": true,
+  "notes": "Without steam_appid.txt the game hangs on Loading, so Cellar creates it."
+}

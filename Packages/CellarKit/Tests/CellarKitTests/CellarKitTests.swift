@@ -63,7 +63,7 @@ func tempDir() throws -> URL {
         #expect(args.contains("-cef-disable-gpu"))
         #expect(Array(args.suffix(3)) == ["-applaunch", "730", "-novid"])
         #expect(args.firstIndex(of: "-no-cef-sandbox")! < args.firstIndex(of: "-applaunch")!)
-        #expect(Steam.arguments(.play(appID: "1", args: []), lowMemory: true).contains("-silent"))
+        #expect(Steam.arguments(.play(appID: "1", args: []), hideSteam: true).contains("-silent"))
         #expect(Steam.arguments(.install(appID: "730")).last == "steam://install/730")
     }
 
@@ -74,6 +74,40 @@ func tempDir() throws -> URL {
         let apps = [app("730", "Counter-Strike Global Offensive"), app("9", "Teardown"), app("1", "Tear")]
         let running = [#"C:\Program Files (x86)\Steam\steamapps\common\Teardown\teardown.exe"#, #"C:\windows\system32\services.exe"#]
         #expect(Steam.appIDs(apps, runningFrom: running) == ["9"])
+    }
+}
+
+@Suite struct PresetTests {
+    @Test func presetsCapOnlyWhereTheBackendCan() throws {
+        let core = CellarCore(paths: CellarPaths(root: try tempDir()))
+        var game = GameProfile(appId: "1")
+        game.graphics = .dxmt
+        game.preset = .battery
+        #expect(core.launchConfig(for: game).extraEnvironment["DXMT_CONFIG"] == "d3d11.preferredMaxFrameRate=30;")
+        game.frameCap = 0
+        #expect(core.launchConfig(for: game).extraEnvironment["DXMT_CONFIG"] == nil)
+        #expect(core.launchConfig(for: game, preset: .balanced).extraEnvironment["DXMT_CONFIG"] == "d3d11.preferredMaxFrameRate=60;")
+        game.graphics = .d3dmetal
+        game.frameCap = nil
+        #expect(core.launchConfig(for: game).extraEnvironment["DXMT_CONFIG"] == nil)
+    }
+
+    @Test func retinaChangesTheSettingsFingerprint() throws {
+        let core = CellarCore(paths: CellarPaths(root: try tempDir()))
+        var game = GameProfile(appId: "1")
+        let engine = URL(fileURLWithPath: "/e")
+        let plain = core.fingerprint(core.launchConfig(for: game), engine: engine)
+        game.retina = true
+        #expect(core.fingerprint(core.launchConfig(for: game), engine: engine) != plain)
+    }
+
+    @Test func steamOverlayStaysOffUnlessAsked() throws {
+        let core = CellarCore(paths: CellarPaths(root: try tempDir()))
+        var game = GameProfile(appId: "1")
+        let wine = core.steamBottle.wine(engine: URL(fileURLWithPath: "/e"))
+        #expect(wine.environment(core.launchConfig(for: game))["WINEDLLOVERRIDES"]?.contains("gameoverlayrenderer,gameoverlayrenderer64=;") == true)
+        game.steamOverlay = true
+        #expect(wine.environment(core.launchConfig(for: game))["WINEDLLOVERRIDES"]?.contains("gameoverlayrenderer,gameoverlayrenderer64=n,b") == true)
     }
 }
 

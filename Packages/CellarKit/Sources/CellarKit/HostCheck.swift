@@ -1,4 +1,5 @@
 import Foundation
+import IOKit.ps
 
 /// What Cellar needs from the Mac before setup can run.
 public struct HostCheck: Sendable {
@@ -22,10 +23,14 @@ public struct HostCheck: Sendable {
         )
     }
 
-    public var memoryGB: Int { Int((Double(physicalMemory) / 1_073_741_824).rounded()) }
+    /// True while the Mac is running on its battery.
+    public static var isOnBattery: Bool {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let source = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() else { return false }
+        return (source as String) == kIOPSBatteryPowerValue
+    }
 
-    /// Macs with 8 GB or less get low-memory mode by default.
-    public var prefersLowMemoryMode: Bool { memoryGB <= 8 }
+    public var memoryGB: Int { Int((Double(physicalMemory) / 1_073_741_824).rounded()) }
 
     public var hasRoomForSetup: Bool { availableDiskBytes >= Self.minimumSetupBytes }
 
