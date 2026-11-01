@@ -26,6 +26,9 @@ struct GameSettingsSheet: View {
             .frame(height: 110)
 
             Form {
+                if let assessment = model.verdicts[game.id] {
+                    Section { VerdictDetails(gameID: game.id, assessment: assessment).padding(.vertical, 2) }
+                }
                 Section {
                     HStack(spacing: 10) {
                         ForEach(GamePreset.allCases) { preset in
@@ -96,7 +99,7 @@ struct GameSettingsSheet: View {
             }
             .padding(16)
         }
-        .frame(width: 540, height: 640)
+        .frame(width: 540, height: 680)
         .onAppear { launchOptions = current.gameArgs?.joined(separator: " ") ?? "" }
     }
 

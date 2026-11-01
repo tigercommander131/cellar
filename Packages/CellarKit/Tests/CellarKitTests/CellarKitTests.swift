@@ -283,3 +283,195 @@ func tempDir() throws -> URL {
         #expect(try VDF.parse(contentsOf: steam.loginUsersURL)["users"]?["76561199377149677"]?["SkipOfflineModeWarning"]?.string == "0")
     }
 }
+
+@Suite struct ConnectionTests {
+    @Test func automaticFollowsTheNetwork() {
+        #expect(ConnectionMode.automatic.wantsOffline(.reachable) == false)
+        #expect(ConnectionMode.automatic.wantsOffline(.blocked) == true)
+        #expect(ConnectionMode.automatic.wantsOffline(.noInternet) == true)
+        #expect(ConnectionMode.online.wantsOffline(.blocked) == false)
+        #expect(ConnectionMode.offline.wantsOffline(.reachable) == true)
+    }
+
+    @Test func directoryPrefersPort443AndOnlyWebSockets() {
+        let json = #"{"response":{"serverlist":[{"endpoint":"a:27018","type":"websockets"},{"endpoint":"b:443","type":"websockets"},{"endpoint":"c:27017","type":"netfilter"}]}}"#
+        #expect(SteamConnectivity.connectionServers(fromDirectory: Data(json.utf8)) == ["b:443", "a:27018"])
+        #expect(SteamConnectivity.connectionServers(fromDirectory: Data("nope".utf8)) == [])
+    }
+
+    private func date(_ text: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter.date(from: text)!
+    }
+
+    @Test func readsSignInFromSteamsLog() {
+        let attempts = """
+        [2026-11-02 02:11:53] [Connecting, 4, 0] [U:1:1] PingWebSocketCM() (cmp2-syd1.steamserver.net:443) starting...
+        [2026-11-02 02:11:54] [Connecting, 4, 7] [U:1:1] Connect() starting connection (eNetQOSLevelHigh, x, WebSocket)
+        """
+        let start = date("2026-11-02 02:11:00")
+        #expect(Steam.logonState(log: attempts, since: start) == .tryingSince(date("2026-11-02 02:11:53")))
+        let connected = attempts + "\n[2026-11-02 02:11:54] [Connecting, 4, 7] [U:1:1] ConnectionCompleted() (1.2.3.4:27018, WebSocket) local"
+        #expect(Steam.logonState(log: connected, since: start) == .connected)
+        let on = connected + "\n[2026-11-02 02:11:54] [Logged On, 4, 7] [U:1:1] RecvMsgClientLogOnResponse() : processing complete"
+        #expect(Steam.logonState(log: on, since: start) == .loggedOn)
+        let off = on + "\n[2026-11-02 02:16:23] [Logged On, 4, 7] [U:1:1] LogOff()\n[2026-11-02 02:16:23] [Logged Off, 0, 0] [U:1:1] ConnectionDisconnected()"
+        #expect(Steam.logonState(log: off, since: start) == .idle)
+    }
+
+    @Test func handlesWindowsLineEndings() {
+        let log = "[2026-11-02 02:40:28] [Connecting, 4, 7] [U:1:1] Connect() starting connection\r\n[2026-11-02 02:40:29] [Logged On, 4, 7] [U:1:1] RecvMsgClientLogOnResponse() : processing complete\r\n[2026-11-02 02:40:29] CClientJobGetClientUpdateHosts: cached version not expired\r\n"
+        #expect(Steam.logonState(log: log, since: date("2026-11-02 02:40:00")) == .loggedOn)
+    }
+
+    @Test func ignoresEarlierSessionsInTheLog() {
+        let log = "[2026-11-02 02:11:54] [Logged On, 4, 7] [U:1:1] RecvMsgClientLogOnResponse() : processing complete"
+        #expect(Steam.logonState(log: log, since: date("2026-11-02 03:00:00")) == .idle)
+    }
+}
+
+@Suite struct CompatibilityTests {
+    @Test func kernelAntiCheatIsBlockedUnlessProvenHere() {
+        var facts = CompatibilityFacts()
+        facts.antiCheatFiles = ["BattlEye"]
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .blocked)
+        facts.antiCheatStatus = "Supported"
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .mayStruggle)
+        facts.antiCheatStatus = "Denied"
+        facts.playedSeconds = 3600
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .runsWell)
+    }
+
+    @Test func vacIsFine() {
+        var facts = CompatibilityFacts()
+        facts.antiCheats = ["VAC"]
+        facts.antiCheatStatus = "Supported"
+        facts.protonTier = "gold"
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .shouldRun)
+    }
+
+    @Test func memoryDependsOnThisMac() {
+        var facts = CompatibilityFacts()
+        facts.minimumMemoryGB = 16
+        facts.protonTier = "platinum"
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 8).verdict == .mayStruggle)
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 24).verdict == .shouldRun)
+    }
+
+    @Test func playersOwnWordWins() {
+        var facts = CompatibilityFacts()
+        facts.antiCheatFiles = ["BattlEye"]
+        facts.report = true
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .runsWell)
+        facts = CompatibilityFacts()
+        facts.playedSeconds = 7200
+        facts.report = false
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .mayStruggle)
+    }
+
+    @Test func quickExitsCount() {
+        var stats = CellarState.GameStats()
+        stats.record(sessionSeconds: 5)
+        stats.record(sessionSeconds: 8)
+        #expect(stats.quickExits == 2)
+        var facts = CompatibilityFacts()
+        facts.quickExits = stats.quickExits
+        #expect(CompatibilityAssessor.assess(facts, memoryGB: 16).verdict == .mayStruggle)
+        stats.record(sessionSeconds: 1200)
+        #expect(stats.quickExits == 0)
+        #expect(stats.playedSeconds == 1200)
+    }
+
+    @Test func nothingKnownSaysSo() {
+        #expect(CompatibilityAssessor.assess(CompatibilityFacts(), memoryGB: 16).verdict == .unknown)
+    }
+
+    @Test func readsMemoryFromRequirements() {
+        #expect(CompatibilityAssessor.minimumMemoryGB(requirements: "<ul><li><strong>Memory:</strong> 8 GB RAM<br></li></ul>") == 8)
+        #expect(CompatibilityAssessor.minimumMemoryGB(requirements: "<strong>Memory:</strong> 512 MB RAM") == 1)
+        #expect(CompatibilityAssessor.minimumMemoryGB(requirements: "<strong>Storage:</strong> 8 GB available") == nil)
+    }
+
+    /// The smallest 64-bit program header with an import table naming d3d12.dll.
+    private func samplePE() -> Data {
+        var bytes = [UInt8](repeating: 0, count: 0x400)
+        func put32(_ value: Int, at: Int) { for i in 0..<4 { bytes[at + i] = UInt8((value >> (8 * i)) & 0xFF) } }
+        func put16(_ value: Int, at: Int) { for i in 0..<2 { bytes[at + i] = UInt8((value >> (8 * i)) & 0xFF) } }
+        put16(0x5A4D, at: 0)
+        put32(0x80, at: 0x3C)
+        put32(0x4550, at: 0x80)
+        put16(1, at: 0x86)        // one section
+        put16(240, at: 0x94)      // optional header size
+        put16(0x20B, at: 0x98)    // 64-bit
+        put32(0x1000, at: 0x98 + 112 + 8)   // import table address
+        let section = 0x98 + 240
+        put32(0x1000, at: section + 8)
+        put32(0x1000, at: section + 12)
+        put32(0x200, at: section + 16)
+        put32(0x200, at: section + 20)
+        put32(0x1100, at: 0x200 + 12)       // first import's name
+        for (i, c) in "d3d12.dll".utf8.enumerated() { bytes[0x300 + i] = c }
+        return Data(bytes)
+    }
+
+    @Test func readsImportsFromAProgram() throws {
+        let pe = try #require(PEFile(data: samplePE()))
+        #expect(pe.is64Bit)
+        #expect(pe.imports == ["d3d12.dll"])
+        #expect(PEFile(data: Data("not a program".utf8)) == nil)
+    }
+
+    @Test func scanFindsAntiCheatAndGraphics() throws {
+        let folder = try tempDir()
+        try FileManager.default.createDirectory(at: folder.appending(path: "EasyAntiCheat"), withIntermediateDirectories: true)
+        try samplePE().write(to: folder.appending(path: "Game.exe"))
+        let result = CompatibilityAssessor.scan(folder: folder)
+        #expect(result.antiCheat == ["Easy Anti-Cheat"])
+        #expect(result.graphicsAPIs == ["d3d12"])
+        #expect(result.is32Bit == false)
+    }
+}
+
+@Suite struct ClipTests {
+    private func frames(_ seconds: Int) -> [ClipTimeline.Frame] {
+        (0..<(seconds * 10)).map { ClipTimeline.Frame(time: Double($0) / 10, isKeyframe: $0 % 10 == 0) }
+    }
+
+    @Test func startsOnTheKeyframeBeforeTheWantedTime() throws {
+        let all = frames(40)
+        let span = try #require(ClipTimeline.span(of: all, seconds: 30))
+        #expect(all[span.lowerBound].isKeyframe)
+        #expect(all[span.lowerBound].time <= all.last!.time - 30)
+        #expect(all[span.lowerBound].time > all.last!.time - 31)
+        #expect(span.upperBound == all.count)
+    }
+
+    @Test func aShortRecordingSavesWhatItHas() throws {
+        let all = frames(5)
+        #expect(try #require(ClipTimeline.span(of: all, seconds: 30)).lowerBound == 0)
+        #expect(ClipTimeline.span(of: [], seconds: 30) == nil)
+        #expect(ClipTimeline.span(of: [.init(time: 1, isKeyframe: false)], seconds: 30) == nil)
+    }
+
+    @Test func outputSizeIsEvenAndCapped() {
+        #expect(ClipRecorder.outputSize(width: 3456, height: 2234, maxHeight: 1080) == (1670, 1080))
+        #expect(ClipRecorder.outputSize(width: 1281, height: 721, maxHeight: 1080) == (1280, 720))
+    }
+
+    @Test func listsClipsNewestFirstWithSafeNames() throws {
+        let root = try tempDir()
+        #expect(ClipLibrary.newURL(game: "A/B: C", kind: .video).deletingLastPathComponent().lastPathComponent == "A-B- C")
+        let folder = root.appending(path: "Teardown")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data().write(to: folder.appending(path: "one.mp4"))
+        try Data().write(to: folder.appending(path: "two.png"))
+        try Data().write(to: folder.appending(path: "skip.txt"))
+        let items = ClipLibrary.items(root: root)
+        #expect(items.count == 2)
+        #expect(Set(items.map(\.kind)) == [.video, .screenshot])
+        #expect(ClipLibrary.items(game: "Teardown", root: root).count == 2)
+        #expect(ClipLibrary.items(game: "Other", root: root).isEmpty)
+    }
+}

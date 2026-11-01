@@ -15,6 +15,34 @@ public struct CellarState: Codable, Sendable, Equatable {
     public var showFPS: Bool?
     /// When each game was last started from Cellar.
     public var lastPlayed: [String: Date]?
+    /// nil means automatic.
+    public var connectionMode: ConnectionMode?
+    /// How each game has gone on this Mac, for the Will It Run badges.
+    public var gameStats: [String: GameStats]?
+    /// The player's own verdict on a game.
+    public var compatibilityReports: [String: Bool]?
+    /// Add every installed game to `~/Applications/Cellar Games`, so Spotlight finds it (nil means on).
+    public var gamesInSpotlight: Bool?
+    /// Seconds a saved clip goes back (nil means 30).
+    public var clipSeconds: Int?
+
+    public struct GameStats: Codable, Sendable, Equatable {
+        public var playedSeconds: Double = 0
+        public var quickExits: Int = 0
+        public init() {}
+
+        /// A launch that closes within this many seconds counts as not having started.
+        public static let quickExitSeconds: Double = 20
+
+        public mutating func record(sessionSeconds: Double) {
+            if sessionSeconds < Self.quickExitSeconds {
+                quickExits += 1
+            } else {
+                playedSeconds += sessionSeconds
+                quickExits = 0
+            }
+        }
+    }
 
     public struct SteamSession: Codable, Sendable, Equatable {
         public var fingerprint: String
@@ -255,9 +283,10 @@ public struct CellarCore: Sendable {
         _ = try wine.start(finalArgs, config: config, log: log("steam"), workingDirectory: steam.steamDir)
     }
 
-    /// Switches Steam's offline mode. Steam has to restart for it, so this refuses while a game runs,
-    /// and reopens Steam afterwards if it was open.
-    public func setSteamOffline(_ offline: Bool) throws {
+    /// Switches Steam's offline mode. Steam has to restart for it, so this refuses while a game runs.
+    /// Afterwards it starts `mode` if given, otherwise reopens Steam if it was open (in the background
+    /// when `quietly` is set).
+    public func setSteamOffline(_ offline: Bool, quietly: Bool = false, thenStart mode: Steam.Mode? = nil, preset: GamePreset? = nil) throws {
         let games = runningGames()
         guard games.isEmpty else {
             throw CellarError("Close \(games.map(\.windowsName).joined(separator: ", ")) first: Steam has to restart.")
@@ -265,7 +294,16 @@ public struct CellarCore: Sendable {
         let wasRunning = isSteamRunning()
         if wasRunning { stopSteam() }
         try steam.setOfflineMode(offline)
-        if wasRunning { try launchSteam(.open) }
+        if let mode {
+            try launchSteam(mode, preset: preset)
+        } else if wasRunning {
+            try launchSteam(quietly ? .silent : .open)
+        }
+    }
+
+    /// Force-quits the running games and leaves Steam open, so the next launch is quick.
+    public func stopGames() {
+        for process in runningGames() { kill(process.pid, SIGKILL) }
     }
 
     public func stopSteam(engine: URL? = nil) {

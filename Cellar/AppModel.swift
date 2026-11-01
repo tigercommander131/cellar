@@ -1,5 +1,7 @@
+import AppKit
 import CellarKit
 import Foundation
+import Network
 import Observation
 import SwiftUI
 
@@ -23,6 +25,9 @@ enum Tab: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class AppModel {
+    /// The one model: Siri and Spotlight actions reach the app through this.
+    static let shared = AppModel()
+
     enum Phase: Equatable {
         case loading
         case needsSetup
@@ -64,15 +69,68 @@ final class AppModel {
     var ownConnect: String?
     var invitedFriends: Set<String> = []
     let overlay = OverlayController()
+    var overlayTab: OverlayTab = .home
+
+    // Online and offline (AppModel+Connection)
+    var connectionMode: ConnectionMode
+    var reachability: SteamReachability?
+    var switchingConnection = false
+    var steamLogon: SteamLogonState = .idle
+    /// A switch that has to wait for the game to close.
+    var connectionSwitchPending = false
+    var checkingConnection = false
+    var lastConnectionSwitch: Date?
+    var pathMonitor: NWPathMonitor?
+    var networkChangeTask: Task<Void, Never>?
+    var connectionTask: Task<Void, Never>?
+    var logonWatch: Task<Void, Never>?
+
+    // Sessions and live stats (AppModel+Session)
+    var sessionStarts: [String: Date] = [:]
+    var sessionBatteryStart: Double?
+    var stats: [SystemSample] = []
+    var frameRates: [Double] = []
+    let sampler = SystemSampler()
+    var statsTask: Task<Void, Never>?
+
+    // Clips (AppModel+Clips)
+    var clipRecorder: ClipRecorder?
+    var clipsRecording = false
+    var clipsStarting = false
+    var clipsNeedPermission = false
+    var clipError: String?
+    var clips: [ClipItem] = []
+    var savingClip = false
+    var clipSeconds: Int
+    var frontmostObserver: NSObjectProtocol?
+
+    // Will It Run (AppModel+Compatibility)
+    let compatibility: CompatibilityService
+    var compatibilityFacts: [String: CompatibilityFacts] = [:]
+    var verdicts: [String: CompatibilityAssessment] = [:]
+    var compatibilityTask: Task<Void, Never>?
+    /// The game waiting on the "blocked by anti-cheat, play anyway?" question.
+    var blockedPromptGame: Game?
+    var gamesInSpotlight: Bool
+    var indexedGames: Set<String>?
 
     private var refreshTask: Task<Void, Never>?
     private var friendsTask: Task<Void, Never>?
+    private var started = false
+    /// A link that arrived before the library was loaded (Spotlight, a Dock shortcut, Siri).
+    private var pendingLink: URL?
+    private var libraryLoaded = false
 
     init() {
         artworkService = ArtworkService(paths: core.paths)
         friendsService = FriendsService(steam: core.steam)
+        compatibility = CompatibilityService(paths: core.paths)
         hideSteamWhilePlaying = core.hideSteamWhilePlaying
-        showFPS = core.loadState().showFPS ?? false
+        let state = core.loadState()
+        showFPS = state.showFPS ?? false
+        connectionMode = state.connectionMode ?? .automatic
+        clipSeconds = state.clipSeconds ?? 30
+        gamesInSpotlight = state.gamesInSpotlight ?? true
         overlay.model = self
     }
 
@@ -100,8 +158,19 @@ final class AppModel {
     // MARK: Lifecycle
 
     func start() {
+        guard !started else { return }
+        started = true
         phase = core.isSetUp ? .ready : .needsSetup
         startRefreshing()
+        startConnectionWatch()
+        refreshClips()
+        // Shows the overlay with no game running, to check its layout.
+        if let raw = ProcessInfo.processInfo.environment["CELLAR_OVERLAY_DEMO"] {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                overlay.show(tab: OverlayTab(rawValue: raw) ?? .home, demo: true)
+            }
+        }
     }
 
     func startRefreshing() {
@@ -126,6 +195,7 @@ final class AppModel {
         steamRunning = running
         steamUser = user
         steamOffline = core.steam.offlineMode
+        updateLogonState()
         let art = await artworkService.artwork(for: apps.map(\.id))
         let played = core.loadState().lastPlayed ?? [:]
         games = apps.map { app in
@@ -134,7 +204,15 @@ final class AppModel {
         }
         if let launching, runningIDs.contains(launching) { self.launching = nil }
         overlay.setHotkeyActive(!runningIDs.isEmpty)
-        if runningIDs.isEmpty, overlay.isVisible { overlay.hide() }
+        if runningIDs.isEmpty, overlay.isVisible, !overlay.isDemo { overlay.hide() }
+        trackSessions(running: runningIDs)
+        checkCompatibility()
+        syncSpotlight()
+        libraryLoaded = true
+        if let link = pendingLink {
+            pendingLink = nil
+            handle(link)
+        }
     }
 
     // MARK: Setup
@@ -165,6 +243,7 @@ final class AppModel {
                 })
                 phase = .ready
                 await refresh()
+                await reconcileConnection()
                 openSteam()
             } catch {
                 setupError = error.localizedDescription
@@ -192,10 +271,15 @@ final class AppModel {
     // MARK: Actions
 
     func openSteam() {
-        perform { try $0.launchSteam(.open) }
+        startSteam(.open)
     }
 
-    func play(_ game: Game) {
+    /// Called when the "blocked" question is answered, or there wasn't one.
+    func play(_ game: Game, knowingItsBlocked: Bool = false) {
+        if !knowingItsBlocked, verdicts[game.id]?.verdict == .blocked {
+            blockedPromptGame = game
+            return
+        }
         // On battery, offer the lower frame cap, where this game's graphics backend can apply one.
         if HostCheck.isOnBattery, game.profile.backend.supportsFrameCap, game.profile.preset != .battery,
            core.loadState().skipBatteryPrompt != true {
@@ -221,20 +305,11 @@ final class AppModel {
             alert = "\(game.name) wants \(need) GB of memory and this Mac has \(host.memoryGB) GB. It may stutter or close."
         }
         launching = game.id
-        perform { try $0.launchSteam(.play(appID: game.id, args: []), preset: preset) } onError: { [weak self] in self?.launching = nil }
+        startSteam(.play(appID: game.id, args: []), preset: preset) { [weak self] in self?.launching = nil }
         Task {
             try? await Task.sleep(for: .seconds(90))
             if launching == game.id { launching = nil }
         }
-    }
-
-    /// Steam's offline mode, for networks (like school Wi-Fi) that block Steam's servers.
-    func setSteamOffline(_ offline: Bool) {
-        steamOffline = offline
-        perform { try $0.setSteamOffline(offline) } onError: { [weak self] in
-            self?.steamOffline = !offline
-        }
-        toast = offline ? "Steam is in offline mode. Games start without signing in." : "Steam is back online."
     }
 
     // MARK: Friends
@@ -281,7 +356,7 @@ final class AppModel {
         overlay.hide()
         guard let game = games.first(where: { $0.id == appID && $0.app.isInstalled }) else {
             toast = "You don't have \(friend.game ?? "that game") yet. Steam will offer to install it."
-            perform { try $0.launchSteam(.install(appID: appID)) }
+            startSteam(.install(appID: appID))
             return
         }
         if let other = runningGame, other.id != appID {
@@ -291,7 +366,7 @@ final class AppModel {
         focusedGameID = appID
         launching = appID
         toast = "Joining \(friend.name) in \(game.name)…"
-        perform { try $0.launchSteam(.join(appID: appID, link: link)) } onError: { [weak self] in
+        startSteam(.join(appID: appID, link: link)) { [weak self] in
             self?.launching = nil
             self?.openFriendsWindow(after: friend)
         }
@@ -329,15 +404,25 @@ final class AppModel {
     }
 
     func chat(with friend: SteamFriend) {
-        perform { try $0.launchSteam(.url(FriendsService.chatLink(friend))) }
+        startSteam(.url(FriendsService.chatLink(friend)))
     }
 
     // MARK: Links (cellar://play/<appid> from Dock shortcuts)
 
     func handle(_ url: URL) {
-        guard url.scheme == "cellar", phase == .ready else { return }
+        guard url.scheme == "cellar" else { return }
+        // A link can be what opened Cellar, before it has read the library.
+        guard phase == .ready, libraryLoaded else {
+            pendingLink = url
+            return
+        }
         let parts = [url.host()].compactMap { $0 } + url.pathComponents.filter { $0 != "/" }
-        // Any web page can open a cellar:// link, so it can only start games already installed.
+        // Any web page can open a cellar:// link, so it can only open the overlay over a running game
+        // or start games already installed.
+        if parts == ["overlay"], runningGame != nil {
+            overlay.show()
+            return
+        }
         guard parts.first == "play", parts.count == 2,
               let game = installedGames.first(where: { $0.id == parts[1] }) else { return }
         focusedGameID = game.id
@@ -408,7 +493,7 @@ final class AppModel {
         NSWorkspace.shared.open(core.paths.logs)
     }
 
-    private func perform(_ action: @escaping @Sendable (CellarCore) throws -> Void, onError: (@MainActor () -> Void)? = nil) {
+    func perform(_ action: @escaping @Sendable (CellarCore) throws -> Void, onError: (@MainActor () -> Void)? = nil) {
         let core = self.core
         Task {
             do {

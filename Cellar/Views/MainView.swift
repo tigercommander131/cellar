@@ -87,6 +87,7 @@ struct TopBar: View {
             }
             .padding(3)
             .background(Capsule().fill(.black.opacity(0.25)))
+            .fixedSize()
             // The title bar is hidden, so the empty part of the top bar moves the window.
             Color.clear
                 .contentShape(Rectangle())
@@ -96,30 +97,7 @@ struct TopBar: View {
                     .buttonStyle(GlassButtonStyle())
                     .help("Force-quit Steam and every game (⇧⌘K)")
             }
-            // Account menu (pattern from Quo on Mobbin): who you are, your status, and the offline switch.
-            Menu {
-                Section(model.steamUser.map { "\($0) · \(model.steamOffline ? "Offline" : (model.steamRunning ? "Online" : "Steam closed"))" } ?? "Steam") {
-                    Button(model.steamRunning ? "Show Steam" : "Open Steam") { model.openSteam() }
-                    if model.steamOffline {
-                        Button("Go Online") { model.setSteamOffline(false) }
-                    } else {
-                        Button("Go Offline (for school Wi-Fi)") { model.setSteamOffline(true) }
-                    }
-                }
-            } label: {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(model.steamOffline ? Color.orange : (model.steamRunning ? Color.green : Color.secondary.opacity(0.5)))
-                        .frame(width: 8, height: 8)
-                    Text(model.steamUser ?? "Steam")
-                    if model.steamOffline { Text("Offline").foregroundStyle(.orange) }
-                }
-            }
-            .menuStyle(.button)
-            .buttonStyle(GlassButtonStyle())
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help(model.steamOffline ? "Steam is in offline mode" : "Steam account and offline mode")
+            SteamButton()
             SettingsLink { Image(systemName: "gearshape.fill") }
                 .buttonStyle(GlassButtonStyle())
                 .help("Settings")
@@ -197,9 +175,14 @@ struct HeroInfo: View {
                 }
             }
             .id(game.id)
-            Text(meta)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(.white.opacity(0.75))
+            HStack(spacing: 10) {
+                if let assessment = model.verdicts[game.id] {
+                    VerdictButton(game: game, assessment: assessment)
+                }
+                Text(meta)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.75))
+            }
             HStack(spacing: 12) {
                 PlayControl(game: game)
                 CircleIconButton(systemImage: "slider.horizontal.3", help: "Game settings") { model.settingsGame = game }
@@ -261,7 +244,7 @@ struct Shelf: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
                         ForEach(games) { game in
-                            ShelfCard(game: game, focused: game.id == model.focusedGame?.id)
+                            ShelfCard(game: game, focused: game.id == model.focusedGame?.id, verdict: model.verdicts[game.id]?.verdict)
                                 .id(game.id)
                                 .onTapGesture(count: 2) { model.play(game) }
                                 .onTapGesture { model.focusedGameID = game.id }
@@ -281,6 +264,7 @@ struct Shelf: View {
 struct ShelfCard: View {
     let game: Game
     let focused: Bool
+    var verdict: CompatibilityVerdict?
     @State private var hovering = false
 
     var body: some View {
@@ -295,6 +279,9 @@ struct ShelfCard: View {
                 if game.isRunning {
                     Circle().fill(.green).frame(width: 10, height: 10).padding(8)
                 }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if let verdict, verdict != .unknown { VerdictDot(verdict: verdict).padding(7) }
             }
             .shadow(color: .black.opacity(focused ? 0.6 : 0.35), radius: focused ? 18 : 8, y: focused ? 10 : 4)
             .scaleEffect(focused ? 1.08 : (hovering ? 1.03 : 1))
@@ -397,6 +384,9 @@ struct LibraryView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 44).padding(.top, 18)
 
+            WillItRunSearch()
+                .padding(.horizontal, 44).padding(.top, 14)
+
             if model.installedGames.isEmpty && model.downloadingGames.isEmpty {
                 EmptyHome().frame(height: 400)
             }
@@ -451,6 +441,11 @@ struct LibraryCard: View {
                             .buttonStyle(PillButtonStyle())
                             .padding(12)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
+                .overlay(alignment: .bottomLeading) {
+                    if !hovering, let verdict = model.verdicts[game.id]?.verdict, verdict != .unknown {
+                        VerdictPill(verdict: verdict).padding(8)
                     }
                 }
                 .overlay {

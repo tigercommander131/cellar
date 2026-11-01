@@ -17,7 +17,7 @@ enum ShortcutMaker {
         try fm.createDirectory(at: contents.appending(path: "MacOS"), withIntermediateDirectories: true)
 
         let info: [String: Any] = [
-            "CFBundleIdentifier": "com.tigercommander131.cellar.shortcut.\(game.id)",
+            "CFBundleIdentifier": bundlePrefix + game.id,
             "CFBundleName": game.name,
             "CFBundleDisplayName": game.name,
             "CFBundleExecutable": "launch",
@@ -38,6 +38,28 @@ enum ShortcutMaker {
             NSWorkspace.shared.setIcon(icon, forFile: app.path, options: [])
         }
         return app
+    }
+
+    static let bundlePrefix = "com.tigercommander131.cellar.shortcut."
+
+    /// Keeps the folder matching the installed games. Spotlight indexes apps in `~/Applications`, so
+    /// this is what makes a game findable by name. Leaves anything that isn't one of ours alone.
+    static func sync(_ games: [Game]) async {
+        let wanted = Dictionary(games.map { ($0.id, $0) }) { first, _ in first }
+        var existing: Set<String> = []
+        let fm = FileManager.default
+        for app in (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] where app.pathExtension == "app" {
+            guard let id = Bundle(url: app)?.bundleIdentifier, id.hasPrefix(bundlePrefix) else { continue }
+            let appID = String(id.dropFirst(bundlePrefix.count))
+            if wanted[appID] == nil {
+                try? fm.removeItem(at: app)
+            } else {
+                existing.insert(appID)
+            }
+        }
+        for (id, game) in wanted where !existing.contains(id) {
+            _ = try? await create(for: game)
+        }
     }
 
     /// The game's portrait art, cropped square into the macOS icon shape.

@@ -39,6 +39,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Games use the microphone for voice chat.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Cellar records the screen only when you turn on Clips, so you can save the last moments of a game.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

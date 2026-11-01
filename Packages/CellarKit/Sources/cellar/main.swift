@@ -20,6 +20,9 @@ usage: cellar <command> [options]
   steam play <appid> [args...]   Launch a game through Steam with its profile
   steam install <appid>          Ask Steam to install a game
   friends                        Online friends and joinable games (needs CELLAR_BRIDGE)
+  connection                     Whether Steam can connect from this network
+  compat <appid>                 Will It Run: the verdict and reasons for a game
+  clip-test <file.mp4>           Record a few seconds of the screen and save it
   processes                      List running Windows programs
   stop                           Force-quit everything Cellar started
 
@@ -154,6 +157,33 @@ do {
         for f in snapshot.friends ?? [] where f.state != 0 {
             print("\(f.id)\tstate \(f.state)\tapp \(f.app ?? 0)\tlobby \(f.lobby ?? "0")\t\(f.name)")
         }
+
+    case "connection":
+        print("Steam from this network: \(await SteamConnectivity.probe().rawValue)")
+        print("Steam's offline mode: \(core.steam.offlineMode ? "on" : "off")")
+
+    case "compat":
+        guard let id = args.first else { fail(usage) }
+        let app = core.steam.apps().first { $0.id == id }
+        let folder = app.map { URL(fileURLWithPath: $0.libraryPath).appending(path: "common/\($0.installDir)") }
+        let service = CompatibilityService(paths: core.paths)
+        let facts = await service.facts(appID: id, name: app?.name ?? "", installFolder: folder, size: app?.sizeOnDisk ?? 0)
+        let result = CompatibilityAssessor.assess(facts, memoryGB: HostCheck.current().memoryGB)
+        print("\(app?.name ?? id): \(result.verdict.title)")
+        for reason in result.reasons { print("  [\(reason.kind.rawValue)] \(reason.text)") }
+
+    case "clip-test":
+        // Records the screen for a few seconds and saves it, to check the clip pipeline end to end.
+        guard let out = args.first else { fail(usage) }
+        var options = ClipRecorder.Options()
+        options.seconds = 4
+        let recorder = ClipRecorder(options: options)
+        try await recorder.start()
+        try await Task.sleep(for: .seconds(6))
+        print("Frame rate: \(recorder.currentFrameRate()), held: \(recorder.heldSamples())")
+        try await recorder.save(to: URL(fileURLWithPath: out))
+        await recorder.stop()
+        print("Saved \(out)")
 
     case "processes":
         for p in core.runningProcesses() { print("\(p.pid)\t\(p.windowsName)") }

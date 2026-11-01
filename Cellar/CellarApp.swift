@@ -5,7 +5,7 @@ import SwiftUI
 @main
 struct CellarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model = AppModel.shared
     private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     init() {
@@ -35,6 +35,8 @@ struct CellarApp: App {
                     .disabled(model.phase != .ready)
                 Button("Show Overlay") { model.overlay.toggle() }
                     .disabled(model.runningGame == nil)
+                Button("Save Clip") { model.saveClip() }
+                    .disabled(!model.clipsRecording)
                 Button("Force Quit All Games") { model.stopAll() }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                 Divider()
@@ -76,6 +78,15 @@ struct RootView: View {
             Button("Don't Ask Again") { model.answerBatteryPrompt(usePreset: false, dontAskAgain: true) }
         } message: {
             Text("The Battery preset limits \(model.batteryPromptGame?.name ?? "this game") to 30 fps for this session, which saves a lot of power.")
+        }
+        .alert("\(model.blockedPromptGame?.name ?? "This game") may not run", isPresented: Binding(get: { model.blockedPromptGame != nil }, set: { if !$0 { model.blockedPromptGame = nil } })) {
+            Button("Play Anyway") {
+                if let game = model.blockedPromptGame { model.play(game, knowingItsBlocked: true) }
+                model.blockedPromptGame = nil
+            }
+            Button("Cancel", role: .cancel) { model.blockedPromptGame = nil }
+        } message: {
+            Text(model.blockedPromptGame.flatMap { model.verdicts[$0.id]?.reasons.first?.text } ?? "Its anti-cheat doesn't work under Wine.")
         }
         .alert("Cellar", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
             Button("OK") { model.alert = nil }

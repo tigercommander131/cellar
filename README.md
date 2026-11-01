@@ -21,15 +21,43 @@ Needs macOS 26 or later, Apple Silicon, and Rosetta 2 (Cellar installs it if mis
 Steam's window stays closed while a game runs, which saves CPU, memory and battery. You can change
 that in Settings.
 
+## Steam, online or offline
+
+Cellar checks whether Steam can really connect, whenever your network changes and before Steam starts.
+On Wi-Fi that blocks Steam, like at school, it goes offline by itself so games still start, then goes back
+online when it can. If a game is running, the switch waits until it closes. You can force either mode in
+the Steam menu, top right, which also has shortcuts to Steam's store, downloads and friends.
+
 ## In a game
 
-Press **Shift+Tab** to open Cellar's overlay: see who's online, **Join** a friend's game, **Invite**
-friends to yours, or Force Quit. Friends also have a Join button in the Friends tab. Join works in games
-that use Steam's lobbies; games with their own server browser are joined inside the game. Steam's own
-overlay stays off unless you switch it on for a game, in its settings, under Advanced.
+Press **Shift+Tab** to open Cellar's overlay, a full-screen layer over the game:
+
+- **Home:** the game, time played, quick actions, friends, heat, memory and volume.
+- **Friends:** **Join** a friend's game or **Invite** them to yours. Join works in games that use Steam's
+  lobbies; games with their own server browser are joined inside the game.
+- **Clips:** switch Clips on and **Option+C** saves the last 30 seconds (or up to 2 minutes), with sound,
+  to Movies › Cellar Clips. Also screenshots. Needs macOS's Screen Recording permission, which Cellar asks
+  for the first time. Only your game is recorded, and recording stops when it closes.
+- **Performance:** CPU, memory, heat, battery, frame rate while Clips are on, and presets.
+- **Game:** notes, guides, and quitting the game.
+
+Steam's own overlay stays off unless you switch it on for a game, in its settings, under Advanced.
 
 Each game also has a **Quality / Balanced / Battery** preset. Frame limits work on DXMT games; on
 D3DMetal games, use the game's own limit or vsync.
+
+## Will it run?
+
+Every game gets a badge: **Runs well**, **Should run**, **May struggle** or **Blocked**. Click it to see why.
+It looks for anti-cheat in the game's files, what graphics it uses, and how it's gone on your Mac, and adds
+[AreWeAntiCheatYet](https://areweanticheatyet.com), [ProtonDB](https://www.protondb.com) (Linux results, so
+only a hint) and Steam's memory requirements. The Library's search does the same for any game on Steam,
+before you install it. Your own "It works" or "It doesn't" beats all of that.
+
+## Spotlight and Siri
+
+Type a game's name in Spotlight to start it, or say "Play Teardown in Cellar" to Siri. Also: "Save a clip in
+Cellar", "Quit my game in Cellar", "Open Steam in Cellar". These work in the Shortcuts app too.
 
 Cellar updates itself, and game fixes arrive automatically.
 

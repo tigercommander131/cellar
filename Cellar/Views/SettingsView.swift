@@ -8,15 +8,38 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Steam") {
-                Toggle("Offline mode", isOn: Binding(get: { model.steamOffline }, set: { model.setSteamOffline($0) }))
-                Text("For Wi-Fi that blocks Steam, like school networks. Games start with the sign-in Steam saved last time you were online. Multiplayer, friends and downloads need it off. Steam restarts when you change this.")
+                Picker("Connection", selection: Binding(get: { model.connectionMode }, set: { model.setConnectionMode($0) })) {
+                    Text("Automatic").tag(ConnectionMode.automatic)
+                    Text("Always online").tag(ConnectionMode.online)
+                    Text("Always offline").tag(ConnectionMode.offline)
+                }
+                LabeledContent("Right now", value: model.steamStatus.title)
+                Text("Automatic checks whether Steam can really connect, whenever your network changes. On Wi-Fi that blocks Steam, like at school, it goes offline by itself, and games start with the sign-in Steam saved last time. If a game is running, the switch waits until it closes.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Overlay") {
                 Picker("Open Cellar's overlay with", selection: $hotkey) {
                     ForEach(OverlayHotkey.allCases) { Text($0.label).tag($0.rawValue) }
                 }
-                Text("Works while a game is running. Friends, Join, Invite and Force Quit, over any game.")
+                Text("Works while a game is running: friends, clips, performance, notes and quitting, over any game.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Clips") {
+                Picker("Save the last", selection: Binding(get: { model.clipSeconds }, set: { model.setClipSeconds($0) })) {
+                    Text("30 seconds").tag(30)
+                    Text("1 minute").tag(60)
+                    Text("2 minutes").tag(120)
+                }
+                HStack {
+                    Text("Turn Clips on in the overlay. They stop when the game closes.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Show Clips") { model.showClipsFolder() }
+                }
+            }
+            Section("Spotlight and Siri") {
+                Toggle("Find games in Spotlight", isOn: Binding(get: { model.gamesInSpotlight }, set: { model.setGamesInSpotlight($0) }))
+                Text("Keeps a small launcher for each installed game in Applications › Cellar Games, so typing its name in Spotlight starts it. Also lets you say \"Play Teardown in Cellar\" to Siri.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Performance") {
