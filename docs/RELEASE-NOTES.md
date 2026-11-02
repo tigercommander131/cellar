@@ -6,3 +6,4 @@
 - **Trim clips.** Press the scissors on a clip in the overlay. It saves a new file and keeps the original.
 - **Beta versions.** A switch in Settings gets you new versions early.
 - **Screen Recording should stick.** Cellar now has a lasting signature, so macOS should stop asking after each update. You'll need to allow it one more time after this update.
+- **Check for updates in Settings.** A button there checks right away.

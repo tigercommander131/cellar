@@ -44,6 +44,9 @@ struct SettingsView: View {
             }
             Section("Menu bar and updates") {
                 Toggle("Show Cellar in the menu bar", isOn: Binding(get: { model.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
+                LabeledContent("Cellar \(appVersion)") {
+                    Button("Check for Updates…") { model.checkForUpdates?() }
+                }
                 Toggle("Get beta versions of Cellar", isOn: Binding(get: { model.betaUpdates }, set: { model.setBetaUpdates($0) }))
                 Text("Beta versions arrive first and are less tested.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -79,6 +82,10 @@ struct SettingsView: View {
         .frame(width: 480)
         .padding(.vertical, 8)
     }
+}
+
+private var appVersion: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
 }
 
 extension PackKind {

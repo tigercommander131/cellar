@@ -12,7 +12,9 @@ struct CellarApp: App {
     init() {
         let delegate = UpdaterDelegate()
         updaterDelegate = delegate
-        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
+        updater = controller
+        AppModel.shared.checkForUpdates = { controller.checkForUpdates(nil) }
         // Steam artwork is loaded with AsyncImage; give it a real disk cache.
         URLCache.shared = URLCache(memoryCapacity: 64 << 20, diskCapacity: 300 << 20)
     }

@@ -1,10 +1,6 @@
 # Cellar 2.1 plan: music, menu bar, self-fixing games
 
-Status: **built and installed on Joel's Mac only, not released.** To release, once Joel says so:
-
-```
-REPO=tigercommander131/cellar scripts/release-app.sh 2.1.0 6
-```
+Status: **released to everyone on 2026-11-02** as 2.1.0 (build 7), after Joel confirmed the Music tab and clip trimming work.
 
 ## Decisions
 
@@ -35,10 +31,8 @@ Your mates are on ad-hoc signed 2.0. Moving to a certificate must not break thei
 
 ## Not proven yet
 
-1. Controlling Spotify, the full Music tab, and the song pop-up. Connecting needs Joel's answer to macOS.
-2. The trim screen itself.
-3. Screen Recording surviving an update. The signature is stable, but that takes a real grant and a later update.
-4. A fresh download of the certificate-signed app. It should behave as before (Open Anyway), but only updating was tested.
+1. Screen Recording surviving an update. The signature is stable, but that takes a real grant and a later update.
+2. A fresh download of the certificate-signed app. It should behave as before (Open Anyway), but only updating was tested.
 
 ## Limits to expect
 

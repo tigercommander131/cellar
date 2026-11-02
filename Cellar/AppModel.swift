@@ -130,6 +130,8 @@ final class AppModel {
 
     var menuBarIcon: Bool
     var betaUpdates: Bool
+    /// Asks the updater to check now, showing the result. Set when the app starts.
+    var checkForUpdates: (() -> Void)?
 
     private var refreshTask: Task<Void, Never>?
     private var friendsTask: Task<Void, Never>?
