@@ -102,6 +102,7 @@ final class AppModel {
     var clips: [ClipItem] = []
     var savingClip = false
     var clipSeconds: Int
+    var autoClips: Bool
     var frontmostObserver: NSObjectProtocol?
 
     // Will It Run (AppModel+Compatibility)
@@ -150,6 +151,7 @@ final class AppModel {
         showFPS = state.showFPS ?? false
         connectionMode = state.connectionMode ?? .automatic
         clipSeconds = state.clipSeconds ?? 30
+        autoClips = state.autoClips ?? true
         gamesInSpotlight = state.gamesInSpotlight ?? true
         selfFixGames = state.selfFixGames ?? true
         menuBarIcon = state.menuBarIcon ?? true

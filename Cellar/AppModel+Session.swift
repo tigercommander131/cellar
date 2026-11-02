@@ -22,6 +22,7 @@ extension AppModel {
             frameRates = []
             sessionBatteryStart = sampler.sample(gamePIDs: []).battery
             startStats()
+            startClipsForGame()
         }
     }
 

@@ -25,13 +25,14 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Clips") {
+                Toggle("Turn Clips on with every game", isOn: Binding(get: { model.autoClips }, set: { model.setAutoClips($0) }))
                 Picker("Save the last", selection: Binding(get: { model.clipSeconds }, set: { model.setClipSeconds($0) })) {
                     Text("30 seconds").tag(30)
                     Text("1 minute").tag(60)
                     Text("2 minutes").tag(120)
                 }
                 HStack {
-                    Text("Turn Clips on in the overlay. They stop when the game closes.")
+                    Text("Option+C saves a clip. Clips use a little extra heat and battery, and stop when the game closes.")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Show Clips") { model.showClipsFolder() }

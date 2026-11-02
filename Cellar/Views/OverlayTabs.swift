@@ -489,7 +489,7 @@ struct OverlayClipsTab: View {
         if model.clipsRecording {
             return "Holding the last \(model.clipLengthLabel) in memory. \(OverlayController.clipHotkeyLabel) saves it, even without opening this. Other apps you switch to aren't recorded."
         }
-        return "Turn on to keep the last \(model.clipLengthLabel) ready to save. It adds a little heat and battery use, and stops when the game closes."
+        return "Off for this game. Turn on to keep the last \(model.clipLengthLabel) ready to save. It adds a little heat and battery use."
     }
 }
 

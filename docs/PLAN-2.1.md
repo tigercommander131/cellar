@@ -2,7 +2,7 @@
 
 Status: **released to everyone on 2026-11-02** as 2.1.0 (build 7), after Joel confirmed the Music tab and clip trimming work.
 
-2.1.1 (build 8) is on Joel's Mac only, not released: a fix for the trim screen crash, quick-length trim buttons, and the overlay closing when you swipe desktops. To release: `REPO=tigercommander131/cellar scripts/release-app.sh 2.1.1 8`
+2.1.1 (build 9) is on Joel's Mac only, not released: a fix for the trim screen crash, quick-length trim buttons, the overlay closing when you swipe desktops, and Clips on by default. To release: `REPO=tigercommander131/cellar scripts/release-app.sh 2.1.1 9`
 
 ## Decisions
 

@@ -135,6 +135,20 @@ extension AppModel {
         }
     }
 
+    func setAutoClips(_ on: Bool) {
+        autoClips = on
+        var state = core.loadState()
+        state.autoClips = on ? nil : false
+        try? core.saveState(state)
+    }
+
+    /// Called when a game starts. Without permission it stays quiet: macOS's question shouldn't
+    /// pop up over a game that's starting, so that's asked when Clips are first switched on by hand.
+    func startClipsForGame() {
+        guard autoClips, CGPreflightScreenCaptureAccess() else { return }
+        setClipsRecording(true)
+    }
+
     func setClipSeconds(_ seconds: Int) {
         clipSeconds = seconds
         var state = core.loadState()
