@@ -29,6 +29,17 @@ struct OverlayHomeTab: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxHeight: .infinity)
+                if SpotifyPlayer.isRunning {
+                    OverlayCard(title: "Music") {
+                        if model.spotify.hasTrack {
+                            MiniPlayer()
+                        } else {
+                            Button("Open the Music tab") { model.overlayTab = .music }
+                                .buttonStyle(.link)
+                                .font(.callout)
+                        }
+                    }
+                }
                 OverlayCard(title: "Latest clips") {
                     let latest = Array(model.clips.prefix(2))
                     if latest.isEmpty {
@@ -383,8 +394,17 @@ struct OverlayFriendRow: View {
 struct OverlayClipsTab: View {
     @Environment(AppModel.self) private var model
     @State private var onlyThisGame = true
+    @State private var trimming: ClipItem?
 
     var body: some View {
+        if let trimming {
+            ClipTrimView(clip: trimming) { self.trimming = nil }
+        } else {
+            gallery
+        }
+    }
+
+    private var gallery: some View {
         VStack(alignment: .leading, spacing: 14) {
             recorderCard
             HStack {
@@ -413,7 +433,7 @@ struct OverlayClipsTab: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 14)], spacing: 14) {
-                        ForEach(shown) { ClipCard(clip: $0) }
+                        ForEach(shown) { clip in ClipCard(clip: clip) { trimming = clip } }
                     }
                     .padding(.bottom, 8)
                 }
@@ -476,6 +496,7 @@ struct OverlayClipsTab: View {
 struct ClipCard: View {
     @Environment(AppModel.self) private var model
     let clip: ClipItem
+    let trim: () -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -501,6 +522,7 @@ struct ClipCard: View {
                         .font(.caption).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 }
                 Spacer(minLength: 2)
+                if clip.kind == .video { icon("scissors", "Trim", run: trim) }
                 icon("doc.on.doc", "Copy, to paste into Discord") { model.copy(clip) }
                 icon("folder", "Show in Finder") { model.reveal(clip) }
                 icon("trash", "Move to Trash") { model.delete(clip) }

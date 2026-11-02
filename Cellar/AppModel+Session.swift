@@ -8,6 +8,11 @@ extension AppModel {
         let known = Set(sessionStarts.keys)
         for id in running.subtracting(known) { gameStarted(id) }
         for id in known.subtracting(running) { gameEnded(id) }
+        for id in running where selfFixes[id] != nil {
+            if let started = sessionStarts[id], Date().timeIntervalSince(started) >= CellarState.GameStats.quickExitSeconds {
+                checkSelfFixWorked(id)
+            }
+        }
     }
 
     private func gameStarted(_ id: String) {
@@ -31,6 +36,7 @@ extension AppModel {
         state.gameStats = all
         try? core.saveState(state)
         refreshVerdict(id)
+        if seconds < CellarState.GameStats.quickExitSeconds { handleQuickExit(id) }
 
         if sessionStarts.isEmpty {
             statsTask?.cancel()
@@ -114,6 +120,8 @@ extension AppModel {
     func quitGame() {
         let core = self.core
         launching = nil
+        stoppedByUser = true
+        selfFixes = [:]
         overlay.hide()
         Task.detached { core.stopGames() }
     }

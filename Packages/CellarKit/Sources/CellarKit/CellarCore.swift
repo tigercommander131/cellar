@@ -25,6 +25,12 @@ public struct CellarState: Codable, Sendable, Equatable {
     public var gamesInSpotlight: Bool?
     /// Seconds a saved clip goes back (nil means 30).
     public var clipSeconds: Int?
+    /// Retry a game on another graphics option if it closes right after starting (nil means on).
+    public var selfFixGames: Bool?
+    /// Keep Cellar's icon in the menu bar (nil means on).
+    public var menuBarIcon: Bool?
+    /// Get beta versions of Cellar (nil means off).
+    public var betaUpdates: Bool?
 
     public struct GameStats: Codable, Sendable, Equatable {
         public var playedSeconds: Double = 0

@@ -415,3 +415,33 @@ public enum ClipLibrary {
         return result.sorted { $0.date > $1.date }
     }
 }
+
+public enum ClipEditor {
+    /// Copies part of a clip to a new file without re-encoding, so it's quick and loses no quality.
+    /// Video can only start on a keyframe, so a trimmed clip may begin up to a second early.
+    public static func trim(_ source: URL, from start: Double, to end: Double, saveTo output: URL) async throws {
+        guard end > start else { throw CellarError("Choose a longer part of the clip.") }
+        let asset = AVURLAsset(url: source)
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+            throw CellarError("This clip can't be trimmed.")
+        }
+        export.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600),
+                                       end: CMTime(seconds: end, preferredTimescale: 600))
+        export.shouldOptimizeForNetworkUse = true
+        try? FileManager.default.removeItem(at: output)
+        try await export.export(to: output, as: .mp4)
+    }
+
+    /// "Teardown 2026-11-02.mp4" becomes "Teardown 2026-11-02 trimmed.mp4", then "trimmed 2" and on.
+    public static func trimmedURL(for source: URL) -> URL {
+        let folder = source.deletingLastPathComponent()
+        let name = source.deletingPathExtension().lastPathComponent
+        var candidate = folder.appending(path: "\(name) trimmed.\(source.pathExtension)")
+        var number = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = folder.appending(path: "\(name) trimmed \(number).\(source.pathExtension)")
+            number += 1
+        }
+        return candidate
+    }
+}

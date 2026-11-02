@@ -94,3 +94,21 @@ public struct RuntimeBuilder: Sendable {
         paths.pack(.d3dmetal).appending(path: "lib/external/libd3dshared.dylib")
     }
 }
+
+/// Which graphics option to try when a game closes right after starting.
+public enum BackendFallback {
+    /// Best first. A game's files only show the libraries it links to directly; engines like Unity load
+    /// DirectX 11 while running, so a missing link rules nothing out. A game linking only to DirectX 12
+    /// really does use it, and only D3DMetal handles that.
+    public static func order(apis: [String], is32Bit: Bool?) -> [GraphicsBackend] {
+        // DXMT and D3DMetal are 64-bit only.
+        if is32Bit == true { return [.wined3d] }
+        if apis.filter({ $0.hasPrefix("d3d") }) == ["d3d12"] { return [.d3dmetal] }
+        return [.d3dmetal, .dxmt, .wined3d]
+    }
+
+    /// The next untried option, or nil when there's nothing left.
+    public static func next(tried: [GraphicsBackend], apis: [String], is32Bit: Bool?) -> GraphicsBackend? {
+        order(apis: apis, is32Bit: is32Bit).first { !tried.contains($0) }
+    }
+}

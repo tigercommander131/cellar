@@ -4,7 +4,7 @@ import CellarKit
 import SwiftUI
 
 enum OverlayTab: String, CaseIterable, Identifiable {
-    case home = "Home", friends = "Friends", clips = "Clips", performance = "Performance", game = "Game"
+    case home = "Home", friends = "Friends", clips = "Clips", music = "Music", performance = "Performance", game = "Game"
     var id: String { rawValue }
 
     var icon: String {
@@ -12,6 +12,7 @@ enum OverlayTab: String, CaseIterable, Identifiable {
         case .home: "house.fill"
         case .friends: "person.2.fill"
         case .clips: "play.rectangle.on.rectangle.fill"
+        case .music: "music.note"
         case .performance: "gauge.with.dots.needle.67percent"
         case .game: "note.text"
         }
@@ -61,6 +62,7 @@ final class OverlayController {
         NSAnimationContext.runAnimationGroup { $0.duration = 0.16; panel.animator().alphaValue = 1 }
         installKeyMonitor()
         model.refreshClips()
+        model.startMusicPolling()
         Task {
             await model.takeSample()
             await model.refreshFriends()
@@ -71,6 +73,7 @@ final class OverlayController {
         guard let panel, panel.isVisible else { return }
         isDemo = false
         removeKeyMonitor()
+        model?.stopMusicPolling()
         panel.orderOut(nil)
         previousApp?.activate()
         previousApp = nil
@@ -91,7 +94,7 @@ final class OverlayController {
 
     // MARK: Keys inside the overlay
 
-    /// Esc goes back to the game; 1 to 5 and the arrows change tab, unless something's being typed.
+    /// Esc goes back to the game; 1 to 6 and the arrows change tab, unless something's being typed.
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -304,6 +307,7 @@ struct OverlayView: View {
                     case .home: OverlayHomeTab()
                     case .friends: OverlayFriendsTab()
                     case .clips: OverlayClipsTab()
+                    case .music: OverlayMusicTab()
                     case .performance: OverlayPerformanceTab()
                     case .game: OverlayGameTab()
                     }
@@ -453,7 +457,7 @@ struct OverlayHints: View {
     var body: some View {
         HStack(spacing: 18) {
             hint("esc", "Back to game")
-            hint("1–5", "Switch tab")
+            hint("1–6", "Switch tab")
             hint(OverlayController.clipHotkeyLabel, "Save clip, while Clips are on")
             Spacer()
         }

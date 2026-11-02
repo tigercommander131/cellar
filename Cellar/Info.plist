@@ -35,6 +35,8 @@
 	<string>public.app-category.games</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Cellar controls the Spotify app when you press play, pause or skip in the overlay.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>

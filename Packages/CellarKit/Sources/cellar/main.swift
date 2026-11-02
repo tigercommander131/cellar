@@ -23,6 +23,7 @@ usage: cellar <command> [options]
   connection                     Whether Steam can connect from this network
   compat <appid>                 Will It Run: the verdict and reasons for a game
   clip-test <file.mp4>           Record a few seconds of the screen and save it
+  clip-trim <in> <out> <from> <to>  Save part of a clip, times in seconds
   processes                      List running Windows programs
   stop                           Force-quit everything Cellar started
 
@@ -184,6 +185,11 @@ do {
         try await recorder.save(to: URL(fileURLWithPath: out))
         await recorder.stop()
         print("Saved \(out)")
+
+    case "clip-trim":
+        guard args.count == 4, let start = Double(args[2]), let end = Double(args[3]) else { fail(usage) }
+        try await ClipEditor.trim(URL(fileURLWithPath: args[0]), from: start, to: end, saveTo: URL(fileURLWithPath: args[1]))
+        print("Saved \(args[1])")
 
     case "processes":
         for p in core.runningProcesses() { print("\(p.pid)\t\(p.windowsName)") }

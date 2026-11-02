@@ -6,9 +6,13 @@ import SwiftUI
 struct CellarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel.shared
-    private let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    private let updaterDelegate: UpdaterDelegate
+    private let updater: SPUStandardUpdaterController
 
     init() {
+        let delegate = UpdaterDelegate()
+        updaterDelegate = delegate
+        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: delegate, userDriverDelegate: nil)
         // Steam artwork is loaded with AsyncImage; give it a real disk cache.
         URLCache.shared = URLCache(memoryCapacity: 64 << 20, diskCapacity: 300 << 20)
     }
@@ -49,6 +53,22 @@ struct CellarApp: App {
                 .environment(model)
                 .preferredColorScheme(.dark)
         }
+
+        MenuBarExtra(isInserted: Binding(get: { model.menuBarIcon }, set: { model.setMenuBarIcon($0) })) {
+            MenuBarPanel()
+                .environment(model)
+        } label: {
+            Image(systemName: "wineglass.fill")
+                .accessibilityLabel("Cellar")
+        }
+        .menuBarExtraStyle(.window)
+    }
+}
+
+/// Beta versions sit in the same update feed, tagged, and only reach people who switched them on.
+final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        CellarCore().loadState().betaUpdates == true ? ["beta"] : []
     }
 }
 

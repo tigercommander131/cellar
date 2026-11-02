@@ -114,6 +114,23 @@ final class AppModel {
     var gamesInSpotlight: Bool
     var indexedGames: Set<String>?
 
+    // Music (AppModel+Music)
+    var spotify = SpotifyState()
+    var spotifyPermission: SpotifyPlayer.Permission = .notRunning
+    var spotifyWatcher: SpotifyWatcher?
+    var musicTask: Task<Void, Never>?
+
+    // Self-fixing games (AppModel+SelfFix)
+    var selfFixGames: Bool
+    var selfFixes: [String: SelfFixAttempt] = [:]
+    var lastLaunch: [String: Date] = [:]
+    var lastLaunchPreset: [String: GamePreset] = [:]
+    /// Force Quit or Quit Game, which mustn't look like a crash.
+    var stoppedByUser = false
+
+    var menuBarIcon: Bool
+    var betaUpdates: Bool
+
     private var refreshTask: Task<Void, Never>?
     private var friendsTask: Task<Void, Never>?
     private var started = false
@@ -131,6 +148,9 @@ final class AppModel {
         connectionMode = state.connectionMode ?? .automatic
         clipSeconds = state.clipSeconds ?? 30
         gamesInSpotlight = state.gamesInSpotlight ?? true
+        selfFixGames = state.selfFixGames ?? true
+        menuBarIcon = state.menuBarIcon ?? true
+        betaUpdates = state.betaUpdates ?? false
         overlay.model = self
     }
 
@@ -163,6 +183,7 @@ final class AppModel {
         phase = core.isSetUp ? .ready : .needsSetup
         startRefreshing()
         startConnectionWatch()
+        startMusicWatch()
         refreshClips()
         // Shows the overlay with no game running, to check its layout.
         if let raw = ProcessInfo.processInfo.environment["CELLAR_OVERLAY_DEMO"] {
@@ -305,6 +326,9 @@ final class AppModel {
             alert = "\(game.name) wants \(need) GB of memory and this Mac has \(host.memoryGB) GB. It may stutter or close."
         }
         launching = game.id
+        stoppedByUser = false
+        lastLaunch[game.id] = Date()
+        lastLaunchPreset[game.id] = preset
         startSteam(.play(appID: game.id, args: []), preset: preset) { [weak self] in self?.launching = nil }
         Task {
             try? await Task.sleep(for: .seconds(90))
@@ -467,8 +491,24 @@ final class AppModel {
         if settingsGame?.id == game.id { settingsGame = games.first { $0.id == game.id } }
     }
 
+    func setMenuBarIcon(_ on: Bool) {
+        menuBarIcon = on
+        var state = core.loadState()
+        state.menuBarIcon = on ? nil : false
+        try? core.saveState(state)
+    }
+
+    func setBetaUpdates(_ on: Bool) {
+        betaUpdates = on
+        var state = core.loadState()
+        state.betaUpdates = on ? true : nil
+        try? core.saveState(state)
+    }
+
     func stopAll() {
         let core = self.core
+        stoppedByUser = true
+        selfFixes = [:]
         launching = nil
         Task.detached { core.stopEverything() }
     }

@@ -37,6 +37,17 @@ struct SettingsView: View {
                     Button("Show Clips") { model.showClipsFolder() }
                 }
             }
+            Section("Games") {
+                Toggle("Fix games that won't start", isOn: Binding(get: { model.selfFixGames }, set: { model.setSelfFixGames($0) }))
+                Text("If a game closes right after starting, Cellar tries the other graphics options and keeps the one that works. A graphics option you picked yourself is left alone.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Menu bar and updates") {
+                Toggle("Show Cellar in the menu bar", isOn: Binding(get: { model.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
+                Toggle("Get beta versions of Cellar", isOn: Binding(get: { model.betaUpdates }, set: { model.setBetaUpdates($0) }))
+                Text("Beta versions arrive first and are less tested.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Spotlight and Siri") {
                 Toggle("Find games in Spotlight", isOn: Binding(get: { model.gamesInSpotlight }, set: { model.setGamesInSpotlight($0) }))
                 Text("Keeps a small launcher for each installed game in Applications › Cellar Games, so typing its name in Spotlight starts it. Also lets you say \"Play Teardown in Cellar\" to Siri.")

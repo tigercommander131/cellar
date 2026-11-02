@@ -475,3 +475,69 @@ func tempDir() throws -> URL {
         #expect(ClipLibrary.items(game: "Other", root: root).isEmpty)
     }
 }
+
+@Suite struct SpotifyTests {
+    @Test func readsTheNotification() {
+        let state = SpotifyState(notification: ["Player State": "Playing", "Track ID": "spotify:track:1", "Name": "Song", "Artist": "Band",
+                                                "Album": "Record", "Duration": NSNumber(value: 200_000), "Playback Position": NSNumber(value: 12.5)])
+        #expect(state.isPlaying)
+        #expect(state.name == "Song")
+        #expect(state.duration == 200)
+        #expect(state.position == 12.5)
+        #expect(!SpotifyState(notification: ["Player State": "Paused"]).isPlaying)
+        #expect(!SpotifyState(notification: [:]).hasTrack)
+    }
+
+    @Test func readsTheScriptsAnswer() {
+        let sep = "\u{1F}"
+        let state = SpotifyPlayer.parse(["playing", "70", "12,5", "spotify:track:1", "Song", "Band", "Record", "200000", "https://i.scdn.co/image/a"].joined(separator: sep) + "\n")
+        #expect(state.isPlaying)
+        #expect(state.volume == 70)
+        #expect(state.position == 12.5)
+        #expect(state.duration == 200)
+        #expect(state.artwork?.host() == "i.scdn.co")
+        let stopped = SpotifyPlayer.parse("stopped" + sep + "40")
+        #expect(!stopped.isPlaying)
+        #expect(stopped.volume == 40)
+        #expect(!stopped.hasTrack)
+    }
+
+    @Test func commandsStayInRange() {
+        #expect(SpotifyPlayer.Command.volume(140).script == "set sound volume to 100")
+        #expect(SpotifyPlayer.Command.seek(-3).script == "set player position to 0.0")
+    }
+}
+
+@Suite struct BackendFallbackTests {
+    @Test func triesEachOptionThatSuitsTheGame() {
+        #expect(BackendFallback.next(tried: [.d3dmetal], apis: ["d3d11"], is32Bit: false) == .dxmt)
+        #expect(BackendFallback.next(tried: [.d3dmetal, .dxmt], apis: ["d3d11"], is32Bit: false) == .wined3d)
+        #expect(BackendFallback.next(tried: [.d3dmetal, .dxmt, .wined3d], apis: ["d3d11"], is32Bit: false) == nil)
+    }
+
+    @Test func respectsWhatEachOptionCanDo() {
+        #expect(BackendFallback.next(tried: [.d3dmetal], apis: ["d3d12"], is32Bit: false) == nil)
+        #expect(BackendFallback.next(tried: [.d3dmetal], apis: ["d3d11", "d3d12"], is32Bit: false) == .dxmt)
+        #expect(BackendFallback.next(tried: [.d3dmetal], apis: ["d3d11"], is32Bit: true) == .wined3d)
+        // Unity links to DirectX 9 or OpenGL, then loads DirectX 11 while running.
+        #expect(BackendFallback.next(tried: [.d3dmetal], apis: ["opengl32", "d3d9"], is32Bit: false) == .dxmt)
+        #expect(BackendFallback.next(tried: [.d3dmetal], apis: [], is32Bit: nil) == .dxmt)
+    }
+}
+
+@Suite struct ClipEditorTests {
+    @Test func namesTrimmedCopiesWithoutOverwriting() throws {
+        let dir = try tempDir()
+        let source = dir.appending(path: "Game.mp4")
+        #expect(ClipEditor.trimmedURL(for: source).lastPathComponent == "Game trimmed.mp4")
+        try Data().write(to: dir.appending(path: "Game trimmed.mp4"))
+        #expect(ClipEditor.trimmedURL(for: source).lastPathComponent == "Game trimmed 2.mp4")
+    }
+
+    @Test func refusesAnEmptyRange() async throws {
+        let dir = try tempDir()
+        await #expect(throws: CellarError.self) {
+            try await ClipEditor.trim(dir.appending(path: "a.mp4"), from: 5, to: 5, saveTo: dir.appending(path: "b.mp4"))
+        }
+    }
+}

@@ -38,6 +38,8 @@ Press **Shift+Tab** to open Cellar's overlay, a full-screen layer over the game:
 - **Clips:** switch Clips on and **Option+C** saves the last 30 seconds (or up to 2 minutes), with sound,
   to Movies › Cellar Clips. Also screenshots. Needs macOS's Screen Recording permission, which Cellar asks
   for the first time. Only your game is recorded, and recording stops when it closes.
+- **Music:** control the Spotify app on your Mac, with cover art. macOS asks once whether Cellar can
+  control it; there's no sign-in. A pop-up shows each new song during a game.
 - **Performance:** CPU, memory, heat, battery, frame rate while Clips are on, and presets.
 - **Game:** notes, guides, and quitting the game.
 
@@ -46,6 +48,13 @@ Steam's own overlay stays off unless you switch it on for a game, in its setting
 Each game also has a **Quality / Balanced / Battery** preset. Frame limits work on DXMT games; on
 D3DMetal games, use the game's own limit or vsync.
 
+Press the scissors on a clip to trim it. That saves a new file and keeps the original.
+
+## Menu bar
+
+Cellar has its own icon in the menu bar, with Steam's status, your game, recent games, friends and music.
+You can turn it off in Settings.
+
 ## Will it run?
 
 Every game gets a badge: **Runs well**, **Should run**, **May struggle** or **Blocked**. Click it to see why.
@@ -53,6 +62,9 @@ It looks for anti-cheat in the game's files, what graphics it uses, and how it's
 [AreWeAntiCheatYet](https://areweanticheatyet.com), [ProtonDB](https://www.protondb.com) (Linux results, so
 only a hint) and Steam's memory requirements. The Library's search does the same for any game on Steam,
 before you install it. Your own "It works" or "It doesn't" beats all of that.
+
+If a game closes right after starting, Cellar tries the other graphics options by itself and keeps the one
+that works. A graphics option you picked yourself is left alone. You can turn this off in Settings.
 
 ## Spotlight and Siri
 
@@ -79,6 +91,8 @@ swift run --package-path Packages/CellarKit cellar steam play 730
 
 - App: `xcodegen generate && xcodebuild -scheme Cellar build` (Xcode 27, macOS 26 SDK).
 - Engine: `engine/build.sh` (or the **Engine** GitHub Actions workflow).
+- Release: `scripts/make-signing-cert.sh` once, then `scripts/release-app.sh <version> <build>`.
+  `CHANNEL=beta` publishes to people who switched on beta versions only.
 
 ## License
 

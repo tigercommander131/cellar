@@ -1,9 +1,8 @@
-**Cellar 2.0**
+**Cellar 2.1**
 
-- **Online and offline are automatic.** Cellar checks whether Steam can really connect, and switches by itself. School Wi-Fi just works, and it goes back online when it can. It never restarts Steam during a game.
-- **A new Steam menu.** Your status at a glance, one click to Steam's library, store, downloads and friends.
-- **A full-screen overlay.** Shift+Tab now opens a proper console-style layer with friends, clips, performance, notes and your game's details.
-- **Clips.** Switch them on in the overlay, then Option+C saves the last 30 seconds with sound. Screenshots too. macOS asks for Screen Recording permission the first time, and may ask again after each Cellar update.
-- **Will It Run badges.** Every game gets a verdict and the reasons for it, and you can check any game on Steam before installing it.
-- **Spotlight and Siri.** Type a game's name in Spotlight to start it, or say "Play Teardown in Cellar".
-- **After a game,** Cellar tells you how long you played and how much battery it used.
+- **Music in the overlay.** A new Music tab controls the Spotify app on your Mac: play, pause, skip, seek and volume, with cover art. A small player sits on the overlay's Home tab, and a pop-up shows the new song during a game. macOS asks once whether Cellar can control Spotify; there's no sign-in.
+- **Cellar in the menu bar.** Its own icon, with Steam's status, your game, recent games, friends and music. You can turn it off in Settings.
+- **Games that fix themselves.** If a game closes right after starting, Cellar tries the other graphics options and keeps the one that works.
+- **Trim clips.** Press the scissors on a clip in the overlay. It saves a new file and keeps the original.
+- **Beta versions.** A switch in Settings gets you new versions early.
+- **Screen Recording should stick.** Cellar now has a lasting signature, so macOS should stop asking after each update. You'll need to allow it one more time after this update.
