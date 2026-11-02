@@ -136,6 +136,7 @@ final class AppModel {
     private var refreshTask: Task<Void, Never>?
     private var friendsTask: Task<Void, Never>?
     private var started = false
+    private var trimDemoWindow: NSWindow?
     /// A link that arrived before the library was loaded (Spotlight, a Dock shortcut, Siri).
     private var pendingLink: URL?
     private var libraryLoaded = false
@@ -187,6 +188,16 @@ final class AppModel {
         startConnectionWatch()
         startMusicWatch()
         refreshClips()
+        // Shows the clip editor in a plain window behind everything, to check it opens.
+        if let raw = ProcessInfo.processInfo.environment["CELLAR_TRIM_DEMO"] {
+            let clip = ClipItem(url: URL(fileURLWithPath: raw), game: "Test", date: Date(), size: 0, kind: .video)
+            let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1100, height: 700), styleMask: [.titled], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = "CellarTrimDemo"
+            window.contentView = NSHostingView(rootView: ClipTrimView(clip: clip, close: {}).environment(self).padding(20).preferredColorScheme(.dark))
+            window.orderBack(nil)
+            trimDemoWindow = window
+        }
         // Shows the overlay with no game running, to check its layout.
         if let raw = ProcessInfo.processInfo.environment["CELLAR_OVERLAY_DEMO"] {
             Task {

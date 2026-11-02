@@ -1,5 +1,4 @@
 import AVFoundation
-import AVKit
 import CellarKit
 import SwiftUI
 
@@ -15,6 +14,7 @@ struct ClipTrimView: View {
     @State private var frames: [CGImage] = []
     @State private var saving = false
     @State private var failure: String?
+    @State private var playing = false
 
     init(clip: ClipItem, close: @escaping () -> Void) {
         self.clip = clip
@@ -24,20 +24,43 @@ struct ClipTrimView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            VideoPlayer(player: player)
+            ClipVideoView(player: player)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture { togglePlaying() }
+                .overlay {
+                    if !playing {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 54))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .shadow(radius: 8)
+                            .allowsHitTesting(false)
+                    }
+                }
             if duration > 0 {
                 TrimBar(duration: duration, frames: frames, start: $start, end: $end) { player.seek(to: seconds($0), toleranceBefore: .zero, toleranceAfter: .zero) }
                     .frame(height: 56)
             } else {
                 ProgressView().controlSize(.small).frame(height: 56)
             }
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                // Only lengths shorter than the clip do anything.
+                let lengths = [10, 15, 30].filter { Double($0) < duration }
+                if !lengths.isEmpty {
+                    Text("Keep the last").font(.callout).foregroundStyle(.white.opacity(0.75))
+                    ForEach(lengths, id: \.self) { seconds in
+                        Button("\(seconds)s") { keepLast(seconds) }
+                            .buttonStyle(GlassButtonStyle())
+                    }
+                }
+                Spacer()
                 Text("Keeping \(time(max(end - start, 0))) of \(time(duration))").font(.callout).monospacedDigit().foregroundStyle(.white.opacity(0.75))
+            }
+            HStack(spacing: 12) {
                 if let failure { Text(failure).font(.callout).foregroundStyle(.orange) }
                 Spacer()
-                Button { playSelection() } label: { Label("Play selection", systemImage: "play.fill") }
+                Button { togglePlaying() } label: { Label(playing ? "Pause" : "Play", systemImage: playing ? "pause.fill" : "play.fill") }
                     .buttonStyle(GlassButtonStyle())
                 Button("Cancel", action: finish).buttonStyle(GlassButtonStyle())
                 Button(saving ? "Saving…" : "Save as New Clip") { save() }
@@ -50,6 +73,7 @@ struct ClipTrimView: View {
         .task(id: end) {
             while !Task.isCancelled {
                 if player.rate > 0, player.currentTime().seconds >= end { player.pause() }
+                playing = player.rate > 0
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
@@ -78,9 +102,24 @@ struct ClipTrimView: View {
         frames = images
     }
 
-    private func playSelection() {
-        player.seek(to: seconds(start), toleranceBefore: .zero, toleranceAfter: .zero)
+    /// Plays from where it is, or from the start of the selection if it's outside it.
+    private func togglePlaying() {
+        if player.rate > 0 {
+            player.pause()
+            return
+        }
+        let now = player.currentTime().seconds
+        if now < start || now >= end - 0.05 {
+            player.seek(to: seconds(start), toleranceBefore: .zero, toleranceAfter: .zero)
+        }
         player.play()
+    }
+
+    private func keepLast(_ length: Int) {
+        let range = ClipEditor.lastPart(seconds: Double(length), of: duration)
+        start = range.start
+        end = range.end
+        player.seek(to: seconds(start), toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
     private func save() {
@@ -107,6 +146,35 @@ struct ClipTrimView: View {
     private func finish() {
         player.pause()
         close()
+    }
+}
+
+/// Just the picture. SwiftUI's own `VideoPlayer` crashes the app inside Apple's code when it's created
+/// (`_AVKit_SwiftUI`, seen on macOS 26 in 2.1.0), so this draws with a plain player layer instead.
+struct ClipVideoView: NSViewRepresentable {
+    let player: AVPlayer
+
+    func makeNSView(context: Context) -> PlayerLayerView {
+        let view = PlayerLayerView()
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspect
+        return view
+    }
+
+    func updateNSView(_ view: PlayerLayerView, context: Context) {
+        view.playerLayer.player = player
+    }
+
+    final class PlayerLayerView: NSView {
+        let playerLayer = AVPlayerLayer()
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            layer = playerLayer
+        }
+
+        required init?(coder: NSCoder) { fatalError("Not used from a nib") }
     }
 }
 

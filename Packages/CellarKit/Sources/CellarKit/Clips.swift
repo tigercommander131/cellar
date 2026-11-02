@@ -370,6 +370,14 @@ public struct ClipItem: Sendable, Identifiable, Equatable, Hashable {
     public var size: Int64
     public var kind: Kind
     public var id: String { url.path }
+
+    public init(url: URL, game: String, date: Date, size: Int64, kind: Kind) {
+        self.url = url
+        self.game = game
+        self.date = date
+        self.size = size
+        self.kind = kind
+    }
 }
 
 public enum ClipLibrary {
@@ -430,6 +438,11 @@ public enum ClipEditor {
         export.shouldOptimizeForNetworkUse = true
         try? FileManager.default.removeItem(at: output)
         try await export.export(to: output, as: .mp4)
+    }
+
+    /// The range for "keep the last N seconds". The whole clip if it's shorter than that.
+    public static func lastPart(seconds: Double, of duration: Double) -> (start: Double, end: Double) {
+        (max(duration - seconds, 0), duration)
     }
 
     /// "Teardown 2026-11-02.mp4" becomes "Teardown 2026-11-02 trimmed.mp4", then "trimmed 2" and on.

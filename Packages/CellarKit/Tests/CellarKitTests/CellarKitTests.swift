@@ -534,6 +534,11 @@ func tempDir() throws -> URL {
         #expect(ClipEditor.trimmedURL(for: source).lastPathComponent == "Game trimmed 2.mp4")
     }
 
+    @Test func keepsTheLastPart() {
+        #expect(ClipEditor.lastPart(seconds: 10, of: 30) == (20, 30))
+        #expect(ClipEditor.lastPart(seconds: 30, of: 12) == (0, 12))
+    }
+
     @Test func refusesAnEmptyRange() async throws {
         let dir = try tempDir()
         await #expect(throws: CellarError.self) {

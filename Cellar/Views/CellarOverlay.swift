@@ -39,6 +39,8 @@ final class OverlayController {
     private var keyMonitor: Any?
     /// Set while testing the layout with no game running, so it isn't closed straight away.
     private(set) var isDemo = false
+    private var spaceObserver: NSObjectProtocol?
+    private var shownAt = Date.distantPast
 
     var isVisible: Bool { panel?.isVisible == true }
 
@@ -53,6 +55,8 @@ final class OverlayController {
         let panel = self.panel ?? makePanel(model)
         self.panel = panel
         previousApp = NSWorkspace.shared.frontmostApplication
+        shownAt = Date()
+        watchSpaces()
         panel.setFrame(screen.frame, display: true)
         panel.alphaValue = 0
         panel.orderFrontRegardless()
@@ -69,20 +73,37 @@ final class OverlayController {
         }
     }
 
-    func hide() {
+    /// `returnToGame` is false after swiping to another desktop: activating the game would drag you back.
+    func hide(returnToGame: Bool = true) {
         guard let panel, panel.isVisible else { return }
         isDemo = false
         removeKeyMonitor()
         model?.stopMusicPolling()
         panel.orderOut(nil)
-        previousApp?.activate()
+        if returnToGame { previousApp?.activate() }
         previousApp = nil
+    }
+
+    /// Swiping to another desktop closes the overlay, so it never sits on top of that desktop.
+    private func watchSpaces() {
+        guard spaceObserver == nil else { return }
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.spaceChanged() }
+        }
+    }
+
+    private func spaceChanged() {
+        // Opening the overlay can itself report a change, which shouldn't close it straight away.
+        guard isVisible, !isDemo, Date().timeIntervalSince(shownAt) > 1 else { return }
+        hide(returnToGame: false)
     }
 
     private func makePanel(_ model: AppModel) -> OverlayPanel {
         let panel = OverlayPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .screenSaver
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        // Opens on whichever desktop you're on and stays there, so a swipe slides it away with the game.
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .ignoresCycle]
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
