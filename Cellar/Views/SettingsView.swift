@@ -39,8 +39,8 @@ struct SettingsView: View {
                 }
             }
             Section("Games") {
-                Toggle("Fix games that won't start", isOn: Binding(get: { model.selfFixGames }, set: { model.setSelfFixGames($0) }))
-                Text("If a game closes right after starting, Cellar tries the other graphics options and keeps the one that works. A graphics option you picked yourself is left alone.")
+                Toggle("Offer fixes for games that won't start", isOn: Binding(get: { model.selfFixGames }, set: { model.setSelfFixGames($0) }))
+                Text("If a game closes right after starting, Cellar asks whether to try another graphics option, and keeps the one that works. It won't ask about games that already run here, or ones you've set up yourself.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Menu bar and updates") {

@@ -36,8 +36,8 @@ Press **Shift+Tab** to open Cellar's overlay, a full-screen layer over the game:
 - **Friends:** **Join** a friend's game or **Invite** them to yours. Join works in games that use Steam's
   lobbies; games with their own server browser are joined inside the game.
 - **Clips:** **Option+C** saves the last 30 seconds (or up to 2 minutes), with sound, to Movies › Cellar
-  Clips. Also screenshots. Switch Clips on here once to allow macOS's Screen Recording permission; after that
-  they start with every game, unless you turn that off in Settings. Only your game is recorded, and recording
+  Clips. Also screenshots. Cellar asks for macOS's Screen Recording permission once; after that they start
+  with every game, unless you turn that off in Settings. Only your game is recorded, and recording
   stops when it closes.
 - **Music:** control the Spotify app on your Mac, with cover art. macOS asks once whether Cellar can
   control it; there's no sign-in. A pop-up shows each new song during a game.
@@ -64,8 +64,9 @@ It looks for anti-cheat in the game's files, what graphics it uses, and how it's
 only a hint) and Steam's memory requirements. The Library's search does the same for any game on Steam,
 before you install it. Your own "It works" or "It doesn't" beats all of that.
 
-If a game closes right after starting, Cellar tries the other graphics options by itself and keeps the one
-that works. A graphics option you picked yourself is left alone. You can turn this off in Settings.
+If a game closes right after starting, Cellar asks whether to try another graphics option, and keeps the one
+that works. It won't ask about games that already run on your Mac, or a graphics option you picked yourself.
+You can turn this off in Settings.
 
 ## Spotlight and Siri
 

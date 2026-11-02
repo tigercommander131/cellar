@@ -220,8 +220,9 @@ final class OverlayController {
         }
     }
 
-    /// Option+C saves a clip, only while Clips are recording.
+    /// Option+C saves a clip. It's there through the whole game, so it can say why if it can't.
     func setClipHotkeyActive(_ active: Bool) {
+        guard active != (clipKey != nil) else { return }
         if let clipKey { UnregisterEventHotKey(clipKey) }
         clipKey = nil
         guard active else { return }

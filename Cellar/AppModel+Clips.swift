@@ -24,6 +24,7 @@ extension AppModel {
         guard clipRecorder == nil, !clipsStarting else { return }
         // Asking ScreenCaptureKit would pop macOS's question up underneath the overlay.
         guard CGPreflightScreenCaptureAccess() else { return askForScreenRecording() }
+        clipsNeedPermission = false
         clipsStarting = true
         clipError = nil
         var options = ClipRecorder.Options()
@@ -43,11 +44,11 @@ extension AppModel {
                 clipRecorder = recorder
                 clipsRecording = true
                 clipsNeedPermission = false
-                overlay.setClipHotkeyActive(true)
                 watchFrontmostApp()
                 overlay.showHUD("Clips on. \(OverlayController.clipHotkeyLabel) saves the last \(clipLengthLabel).", systemImage: "record.circle")
             } catch {
                 clipError = error.localizedDescription
+                overlay.showHUD("Clips couldn't start. See the Clips tab.", systemImage: "exclamationmark.triangle.fill")
             }
         }
     }
@@ -56,7 +57,6 @@ extension AppModel {
         guard let recorder = clipRecorder else { return }
         clipRecorder = nil
         clipsRecording = false
-        overlay.setClipHotkeyActive(false)
         if let frontmostObserver { NSWorkspace.shared.notificationCenter.removeObserver(frontmostObserver) }
         frontmostObserver = nil
         Task { await recorder.stop() }
@@ -66,7 +66,50 @@ extension AppModel {
     func askForScreenRecording() {
         clipsNeedPermission = true
         overlay.hide()
-        CGRequestScreenCaptureAccess()
+        // A second ask this launch would wipe a yes that macOS is waiting for a relaunch to apply.
+        guard !clipsAskedThisLaunch else { return }
+        clipsAskedThisLaunch = true
+        Task {
+            await resetScreenRecordingEntry()
+            CGRequestScreenCaptureAccess()
+        }
+    }
+
+    /// macOS ties the permission to the app's signature. A yes given to an older signature still shows
+    /// as on in System Settings, but doesn't count, and macOS won't ask again while it's there. So this
+    /// clears Cellar's own entry first. It touches nothing else.
+    private func resetScreenRecordingEntry() async {
+        guard let id = ownBundleID else { return }
+        await Task.detached {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            process.arguments = ["reset", "ScreenCapture", id]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+            process.waitUntilExit()
+        }.value
+    }
+
+    /// Runs once for each signature, outside a game, so Clips work by the time a game starts.
+    func repairScreenRecordingOnce(gameRunning: Bool) {
+        guard !screenRecordingChecked, !gameRunning else { return }
+        screenRecordingChecked = true
+        let signature = "self-signed-1"
+        var state = core.loadState()
+        guard autoClips, !CGPreflightScreenCaptureAccess(), state.screenRecordingAskedFor != signature else { return }
+        state.screenRecordingAskedFor = signature
+        try? core.saveState(state)
+        askForScreenRecording()
+    }
+
+    func relaunch() {
+        let path = Bundle.main.bundlePath
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", path]
+        try? process.run()
+        NSApp.terminate(nil)
     }
 
     func openScreenRecordingSettings() {
@@ -100,7 +143,8 @@ extension AppModel {
 
     func saveClip() {
         guard let recorder = clipRecorder else {
-            overlay.showHUD("Clips are off. Turn them on in the overlay.", systemImage: "record.circle")
+            let reason = CGPreflightScreenCaptureAccess() ? "Clips are off for this game." : "Clips need permission."
+            overlay.showHUD("\(reason) Press \(OverlayHotkey.current.label), then 3.", systemImage: "record.circle")
             return
         }
         guard !savingClip else { return }
@@ -142,10 +186,15 @@ extension AppModel {
         try? core.saveState(state)
     }
 
-    /// Called when a game starts. Without permission it stays quiet: macOS's question shouldn't
-    /// pop up over a game that's starting, so that's asked when Clips are first switched on by hand.
+    /// Called when a game starts. Without permission it only says so: macOS's question shouldn't pop
+    /// up over a game that's starting.
     func startClipsForGame() {
-        guard autoClips, CGPreflightScreenCaptureAccess() else { return }
+        guard autoClips else { return }
+        guard CGPreflightScreenCaptureAccess() else {
+            clipsNeedPermission = true
+            overlay.showHUD("Clips need permission. Press \(OverlayHotkey.current.label), then 3.", systemImage: "lock.fill")
+            return
+        }
         setClipsRecording(true)
     }
 

@@ -472,11 +472,18 @@ struct OverlayClipsTab: View {
             if model.clipsNeedPermission {
                 HStack(spacing: 12) {
                     Image(systemName: "lock.fill").foregroundStyle(.orange)
-                    Text("Cellar needs Screen Recording permission. Turn it on in System Settings, then quit and reopen Cellar.")
+                    Text(model.clipsAskedThisLaunch ? "Allowed it in the macOS pop-up? Reopen Cellar to finish. No pop-up? Turn on Cellar in System Settings." : "Cellar needs Screen Recording permission for Clips and screenshots.")
                         .font(.callout).fixedSize(horizontal: false, vertical: true)
                     Spacer()
-                    Button("Open Settings") { model.openScreenRecordingSettings() }
-                        .buttonStyle(GlassButtonStyle())
+                    if model.clipsAskedThisLaunch {
+                        Button("Settings") { model.openScreenRecordingSettings() }
+                            .buttonStyle(GlassButtonStyle())
+                        Button("Reopen Cellar") { model.relaunch() }
+                            .buttonStyle(PillButtonStyle())
+                    } else {
+                        Button("Allow") { model.askForScreenRecording() }
+                            .buttonStyle(PillButtonStyle())
+                    }
                 }
             }
             if let error = model.clipError {

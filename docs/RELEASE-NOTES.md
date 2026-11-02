@@ -1,6 +1,5 @@
-**Cellar 2.1.1**
+**Cellar 2.1.2**
 
-- **Trimming clips no longer crashes Cellar.**
-- **Easier trimming.** One click keeps the last 10, 15 or 30 seconds, then fine-tune with the handles. Click the video to play or pause.
-- **The overlay closes when you swipe to another desktop,** instead of staying on top of it.
-- **Clips are on by default.** They start with every game once you've allowed Screen Recording, so Option+C just works. You can turn this off in Settings.
+- **Clips work again after updating.** macOS kept showing the permission as on after the 2.1 update, but wasn't honouring it. Cellar now clears that and asks once. Allow it and reopen Cellar.
+- **Clips tell you what's wrong.** Option+C and the start of a game now say so if Clips can't record, instead of doing nothing.
+- **Closing a game quickly no longer changes its settings.** Cellar now asks before trying another graphics option, and doesn't ask about games that already run on your Mac.

@@ -98,6 +98,9 @@ final class AppModel {
     var clipsRecording = false
     var clipsStarting = false
     var clipsNeedPermission = false
+    /// Permission was asked for since launch. macOS may not apply it until Cellar reopens.
+    var clipsAskedThisLaunch = false
+    var screenRecordingChecked = false
     var clipError: String?
     var clips: [ClipItem] = []
     var savingClip = false
@@ -124,6 +127,7 @@ final class AppModel {
     // Self-fixing games (AppModel+SelfFix)
     var selfFixGames: Bool
     var selfFixes: [String: SelfFixAttempt] = [:]
+    var selfFixPrompt: SelfFixPrompt?
     var lastLaunch: [String: Date] = [:]
     var lastLaunchPreset: [String: GamePreset] = [:]
     /// Force Quit or Quit Game, which mustn't look like a crash.
@@ -240,6 +244,8 @@ final class AppModel {
         }
         if let launching, runningIDs.contains(launching) { self.launching = nil }
         overlay.setHotkeyActive(!runningIDs.isEmpty)
+        overlay.setClipHotkeyActive(!runningIDs.isEmpty && (autoClips || clipsRecording))
+        repairScreenRecordingOnce(gameRunning: !runningIDs.isEmpty)
         if runningIDs.isEmpty, overlay.isVisible, !overlay.isDemo { overlay.hide() }
         trackSessions(running: runningIDs)
         checkCompatibility()

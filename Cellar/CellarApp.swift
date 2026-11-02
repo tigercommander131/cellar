@@ -110,6 +110,12 @@ struct RootView: View {
         } message: {
             Text(model.blockedPromptGame.flatMap { model.verdicts[$0.id]?.reasons.first?.text } ?? "Its anti-cheat doesn't work under Wine.")
         }
+        .alert("\(model.selfFixPrompt?.game.name ?? "This game") closed right after starting", isPresented: Binding(get: { model.selfFixPrompt != nil }, set: { if !$0, model.selfFixPrompt != nil { model.answerSelfFixPrompt(tryIt: false) } })) {
+            Button("Try \(model.selfFixPrompt?.next.shortName ?? "Another Option")") { model.answerSelfFixPrompt(tryIt: true) }
+            Button("I Closed It", role: .cancel) { model.answerSelfFixPrompt(tryIt: false) }
+        } message: {
+            Text("If it crashed, a different graphics option may fix it.")
+        }
         .alert("Cellar", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
             Button("OK") { model.alert = nil }
         } message: {

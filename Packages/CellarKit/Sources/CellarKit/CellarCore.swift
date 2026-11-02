@@ -25,6 +25,8 @@ public struct CellarState: Codable, Sendable, Equatable {
     public var gamesInSpotlight: Bool?
     /// Seconds a saved clip goes back (nil means 30).
     public var clipSeconds: Int?
+    /// Which signature Cellar last asked for Screen Recording under.
+    public var screenRecordingAskedFor: String?
     /// Start Clips by themselves when a game starts (nil means on).
     public var autoClips: Bool?
     /// Retry a game on another graphics option if it closes right after starting (nil means on).
