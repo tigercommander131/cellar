@@ -112,12 +112,13 @@ struct OverlayMusicTab: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The cover goes in an overlay on something sized to this tab: as a background of its own, a square
+        // image grew past the tab, over the tab bar, greying it out and taking its clicks.
         .background {
-            ZStack {
-                Color.white.opacity(0.05)
-                SpotifyCover(url: model.spotify.artwork).blur(radius: 60).opacity(0.45)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            Color.white.opacity(0.05)
+                .overlay { SpotifyCover(url: model.spotify.artwork).blur(radius: 60).opacity(0.45) }
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .allowsHitTesting(false)
         }
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.1)))
         .task { await model.refreshMusic() }

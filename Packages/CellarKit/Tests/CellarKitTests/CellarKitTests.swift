@@ -570,3 +570,68 @@ func tempDir() throws -> URL {
         }
     }
 }
+
+@Suite struct GameSettingsTests {
+    private func specs(_ chip: String, _ model: String, _ memory: Int) -> MacSpecs {
+        MacSpecs(chip: chip, modelName: model, gpuCores: 10, memoryGB: memory)
+    }
+
+    @Test func tiersFollowChipFanAndMemory() {
+        #expect(specs("Apple M3", "MacBook Air", 16).tier == .entry)
+        #expect(specs("Apple M3", "MacBook Pro", 16).tier == .mid)
+        #expect(specs("Apple M4", "Mac mini", 8).tier == .entry)
+        #expect(specs("Apple M3 Pro", "MacBook Pro", 18).tier == .mid)
+        #expect(specs("Apple M2 Max", "Mac Studio", 32).tier == .high)
+        #expect(specs("Apple M1 Ultra", "Mac Studio", 64).tier == .high)
+    }
+
+    @Test func readsWikiOptions() throws {
+        let text = """
+        ==Video==
+        {{Video
+        |vsync                      = true
+        |upscaling                  = true
+        |upscaling tech             = DLSS 4.5, FSR 4.1
+        |60 fps                     = true
+        |120 fps                    = unknown
+        |antialiasing               = limited
+        |windowed                   = false
+        }}
+        {{Other}}
+        """
+        let info = try #require(GameOptionsInfo.parse(wikitext: text, page: "Game"))
+        #expect(info.hasVsync == true)
+        #expect(info.upscalingTech == "DLSS 4.5, FSR 4.1")
+        #expect(info.supports120 == nil)
+        #expect(info.hasAntialiasing == true)
+        #expect(info.hasWindowed == false)
+        #expect(GameOptionsInfo.parse(wikitext: "no block", page: "x") == nil)
+    }
+
+    @Test func generalAdviceOnlyOffersWhatTheGameHas() {
+        var info = GameOptionsInfo(page: "Game")
+        info.hasVsync = false
+        info.hasUpscaling = true
+        info.upscalingTech = "DLSS 3"
+        let advice = SettingsAdvisor.advice(curated: nil, info: info, tier: .entry)
+        #expect(!advice.rows.contains { $0.name == "Vsync" })
+        #expect(!advice.rows.contains { $0.name == "Upscaling" })   // DLSS alone can't work on a Mac.
+        #expect(advice.source == .wiki(page: "Game"))
+        info.upscalingTech = "DLSS 3, FSR 2"
+        #expect(SettingsAdvisor.advice(curated: nil, info: info, tier: .high).rows.first { $0.name == "Upscaling" }?.value == "FSR, Quality")
+        #expect(SettingsAdvisor.advice(curated: nil, info: nil, tier: .mid).source == .general)
+    }
+
+    @Test func researchedSettingsParseAndUseTheTier() throws {
+        var url = URL(fileURLWithPath: #filePath)
+        for _ in 0..<5 { url.deleteLastPathComponent() }
+        let data = try Data(contentsOf: url.appending(path: "Cellar/Resources/game-settings.json"))
+        let all = try JSONDecoder().decode([String: CuratedGameSettings].self, from: data)
+        #expect(all.count >= 5)
+        let advice = SettingsAdvisor.advice(curated: all["1167630"], info: nil, tier: .entry)
+        #expect(advice.source == .curated)
+        #expect(advice.rows.first { $0.name == "Render Quality" }?.value == "Low")
+        #expect(SettingsAdvisor.advice(curated: all["1167630"], info: nil, tier: .high).rows.first { $0.name == "Render Quality" }?.value == "High")
+        for game in all.values { #expect(GamePreset(rawValue: game.cellarPreset.entry) != nil) }
+    }
+}

@@ -626,7 +626,10 @@ struct OverlayPerformanceTab: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                if let game = model.runningGame { presets(game) }
+                if let game = model.runningGame {
+                    OverlayCard { RecommendedSettingsView(game: game) }
+                    presets(game)
+                }
             }
             .padding(.bottom, 8)
         }

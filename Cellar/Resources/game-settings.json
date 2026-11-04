@@ -1,0 +1,67 @@
+{
+  "1167630": {
+    "cellarPreset": { "entry": "balanced", "mid": "balanced", "high": "quality" },
+    "target": { "entry": "30–40 fps", "mid": "45–60 fps", "high": "60 fps" },
+    "note": "Teardown's physics and lighting lean hard on both the CPU and GPU, and big explosions always dip. Render Scale helps the most.",
+    "settings": [
+      { "name": "Render Scale", "entry": "75%", "mid": "75%", "high": "100%", "why": "Draws fewer pixels. The biggest single gain." },
+      { "name": "Render Quality", "entry": "Low", "mid": "Medium", "high": "High", "why": "Lighting detail, and heavy on Macs." },
+      { "name": "Particles", "entry": "Medium", "mid": "Medium", "high": "High", "why": "Smoke and debris cost most when things explode." },
+      { "name": "Upscaling", "entry": "Default", "mid": "Default", "high": "Default", "why": "Try AMD FSR on Performance if it's still slow. It hasn't been tested on a Mac here." },
+      { "name": "Vsync", "entry": "Off", "mid": "Off", "high": "On", "why": "Below 60 fps, vsync can hold you down to 30." },
+      { "name": "Motion Blur", "entry": "Off", "mid": "Off", "high": "Your choice", "why": "Hides less than it costs at lower frame rates." },
+      { "name": "Depth of Field", "entry": "Off", "mid": "On", "high": "On", "why": "A small saving for little visual loss." }
+    ]
+  },
+  "1118200": {
+    "cellarPreset": { "entry": "balanced", "mid": "balanced", "high": "balanced" },
+    "target": { "entry": "60 fps until scenes get big", "mid": "60 fps", "high": "60 fps or more" },
+    "note": "People Playground is limited by physics, so big scenes slow down on any Mac. Clearing debris and corpses helps more than any graphics option.",
+    "settings": [
+      { "name": "Collision Quality", "entry": "Dynamic", "mid": "Dynamic", "high": "Dynamic", "why": "Saves physics work when a scene gets crowded." },
+      { "name": "Physics Iterations", "entry": "16", "mid": "24", "high": "32", "why": "The heaviest setting here. Lower is less accurate but much faster." },
+      { "name": "Bloom", "entry": "Lowest", "mid": "One step down", "high": "Fancy", "why": "An effect you can drop with little visual loss." },
+      { "name": "Fancy Effects", "entry": "Off", "mid": "On", "high": "On", "why": "Extra visual effects that add up in big scenes." },
+      { "name": "Decals", "entry": "On", "mid": "On", "high": "On", "why": "Part of the game's look. Turn off only if blood builds up and slows things." },
+      { "name": "Procedural Fragments", "entry": "Off", "mid": "Off", "high": "On", "why": "Breaking things into pieces creates more physics work." },
+      { "name": "Framerate Limit", "entry": "60", "mid": "60", "high": "120", "why": "A limit saves heat and battery, and this Mac's screen may not show more." }
+    ]
+  },
+  "4000": {
+    "cellarPreset": { "entry": "balanced", "mid": "balanced", "high": "quality" },
+    "target": { "entry": "60 fps, less with many addons", "mid": "60 fps", "high": "60 fps or more" },
+    "note": "Addons usually matter more than graphics in Garry's Mod. Unsubscribing from ones you don't use is the best fix. Garry's Mod also has a real Mac version in Steam.",
+    "settings": [
+      { "name": "Model Detail", "entry": "Medium", "mid": "High", "high": "High", "why": "Matters most on servers with many players." },
+      { "name": "Texture Detail", "entry": "Medium", "mid": "High", "high": "High", "why": "Uses memory more than speed." },
+      { "name": "Shader Detail", "entry": "Low", "mid": "Medium", "high": "High", "why": "A cheap way to gain frames." },
+      { "name": "Water Detail", "entry": "Simple reflections", "mid": "Reflect world", "high": "Reflect all", "why": "Costly on maps with water." },
+      { "name": "Shadow Detail", "entry": "Low", "mid": "Medium", "high": "High", "why": "A cheap way to gain frames." },
+      { "name": "Antialiasing Mode", "entry": "None", "mid": "2x MSAA", "high": "4x MSAA", "why": "Costly, and the screen is already sharp." },
+      { "name": "Multicore Rendering", "entry": "Enabled", "mid": "Enabled", "high": "Enabled", "why": "Spreads work across cores. Turn it off if the game crashes." }
+    ]
+  },
+  "2168680": {
+    "cellarPreset": { "entry": "balanced", "mid": "balanced", "high": "quality" },
+    "target": { "entry": "30–40 fps", "mid": "45–60 fps", "high": "60 fps" },
+    "note": "This covers only the options Cellar could confirm from the game's saved settings, and the names in its menu may differ slightly. Big online matches get slower as they go, which players often put down to smoke, though that isn't confirmed.",
+    "settings": [
+      { "name": "FPS Limit", "entry": "40", "mid": "60", "high": "60", "why": "Keeps a fanless Mac cooler and steadier." },
+      { "name": "Grass", "entry": "Off", "mid": "Off", "high": "On", "why": "Lots of small objects, especially at low altitude." },
+      { "name": "Texture Quality", "entry": "One step down", "mid": "Full", "high": "Full", "why": "Saves memory on smaller Macs." },
+      { "name": "Vsync", "entry": "Off", "mid": "Off", "high": "On", "why": "Below 60 fps, vsync can hold you down to 30. Use the limit instead." }
+    ]
+  },
+  "3892270": {
+    "cellarPreset": { "entry": "balanced", "mid": "balanced", "high": "quality" },
+    "target": { "entry": "40–60 fps", "mid": "60 fps", "high": "60 fps or more" },
+    "note": "A small co-op game, so a frame limit mostly saves heat and battery.",
+    "settings": [
+      { "name": "Quality", "entry": "Low", "mid": "Medium", "high": "High", "why": "The game's main graphics setting." },
+      { "name": "Max Frame Rate", "entry": "60", "mid": "60", "high": "120", "why": "It's on Unlimited by default, which runs the Mac flat out for nothing." },
+      { "name": "Vsync", "entry": "Off", "mid": "Off", "high": "On", "why": "Use the frame limit instead." },
+      { "name": "Anisotropic Filtering", "entry": "2x", "mid": "4x", "high": "8x", "why": "Cheap sharpness on floors at an angle." },
+      { "name": "Film Grain", "entry": "Your choice", "mid": "Your choice", "high": "Your choice", "why": "Taste. It costs almost nothing." }
+    ]
+  }
+}

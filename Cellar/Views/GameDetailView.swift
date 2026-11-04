@@ -29,6 +29,7 @@ struct GameSettingsSheet: View {
                 if let assessment = model.verdicts[game.id] {
                     Section { VerdictDetails(gameID: game.id, assessment: assessment).padding(.vertical, 2) }
                 }
+                Section { RecommendedSettingsView(game: game).padding(.vertical, 2) }
                 Section {
                     HStack(spacing: 10) {
                         ForEach(GamePreset.allCases) { preset in

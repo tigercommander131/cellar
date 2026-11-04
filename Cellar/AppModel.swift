@@ -126,6 +126,12 @@ final class AppModel {
     var spotifyWatcher: SpotifyWatcher?
     var musicTask: Task<Void, Never>?
 
+    // Recommended settings (AppModel+GameSettings)
+    var macSpecs: MacSpecs?
+    var curatedSettings: [String: CuratedGameSettings]?
+    var settingsAdvice: [String: SettingsAdvice] = [:]
+    let gameOptions: GameOptionsService
+
     // Self-fixing games (AppModel+SelfFix)
     var selfFixGames: Bool
     var selfFixes: [String: SelfFixAttempt] = [:]
@@ -154,6 +160,7 @@ final class AppModel {
         artworkService = ArtworkService(paths: core.paths)
         friendsService = FriendsService(steam: core.steam)
         compatibility = CompatibilityService(paths: core.paths)
+        gameOptions = GameOptionsService(paths: core.paths)
         hideSteamWhilePlaying = core.hideSteamWhilePlaying
         let state = core.loadState()
         showFPS = state.showFPS ?? false
@@ -198,15 +205,12 @@ final class AppModel {
         startConnectionWatch()
         startMusicWatch()
         refreshClips()
-        // Shows the clip editor in a plain window behind everything, to check it opens.
-        if let raw = ProcessInfo.processInfo.environment["CELLAR_TRIM_DEMO"] {
-            let clip = ClipItem(url: URL(fileURLWithPath: raw), game: "Test", date: Date(), size: 0, kind: .video)
-            let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1100, height: 700), styleMask: [.titled], backing: .buffered, defer: false)
-            window.isReleasedWhenClosed = false
-            window.title = "CellarTrimDemo"
-            window.contentView = NSHostingView(rootView: ClipTrimView(clip: clip, close: {}).environment(self).padding(20).preferredColorScheme(.dark))
-            window.orderBack(nil)
-            trimDemoWindow = window
+        // Shows a screen in a plain window behind everything, to check it without covering the display.
+        if let raw = ProcessInfo.processInfo.environment["CELLAR_WINDOW_DEMO"] {
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                showWindowDemo(raw)
+            }
         }
         // Shows the overlay with no game running, to check its layout.
         if let raw = ProcessInfo.processInfo.environment["CELLAR_OVERLAY_DEMO"] {
@@ -267,6 +271,28 @@ final class AppModel {
             pendingLink = nil
             handle(link)
         }
+    }
+
+    private func showWindowDemo(_ raw: String) {
+        let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
+        let content: AnyView
+        switch parts[0] {
+        case "trim":
+            let clip = ClipItem(url: URL(fileURLWithPath: parts[1]), game: "Test", date: Date(), size: 0, kind: .video)
+            content = AnyView(ClipTrimView(clip: clip, close: {}).padding(20))
+        case "advice":
+            guard let game = games.first(where: { $0.id == parts[1] }) else { return }
+            content = AnyView(ScrollView { RecommendedSettingsView(game: game).padding(20) }.frame(width: 520, height: 720))
+        default:
+            overlayTab = .music
+            content = AnyView(OverlayView())
+        }
+        let window = NSWindow(contentRect: NSRect(x: 40, y: 40, width: 1100, height: 760), styleMask: [.titled], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.title = "CellarDemo"
+        window.contentView = NSHostingView(rootView: content.environment(self).preferredColorScheme(.dark))
+        window.orderBack(nil)
+        trimDemoWindow = window
     }
 
     // MARK: Setup
