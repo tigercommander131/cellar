@@ -121,6 +121,8 @@ final class AppModel {
     // Music (AppModel+Music)
     var spotify = SpotifyState()
     var spotifyPermission: SpotifyPlayer.Permission = .notRunning
+    /// False until the first check, so nothing claims Spotify is closed before it's looked.
+    var spotifyChecked = false
     var spotifyWatcher: SpotifyWatcher?
     var musicTask: Task<Void, Never>?
 
@@ -142,6 +144,8 @@ final class AppModel {
     private var friendsTask: Task<Void, Never>?
     private var started = false
     private var trimDemoWindow: NSWindow?
+    /// nil inside means Steam has no images saved for that game.
+    private var localArtwork: [String: SteamArtwork?] = [:]
     /// A link that arrived before the library was loaded (Spotlight, a Dock shortcut, Siri).
     private var pendingLink: URL?
     private var libraryLoaded = false
@@ -236,7 +240,15 @@ final class AppModel {
         steamUser = user
         steamOffline = core.steam.offlineMode
         updateLogonState()
-        let art = await artworkService.artwork(for: apps.map(\.id))
+        var art = await artworkService.artwork(for: apps.map(\.id))
+        // Steam's own copies work with no network, like on Wi-Fi that blocks Steam's image servers.
+        for app in apps {
+            if localArtwork[app.id] == nil { localArtwork[app.id] = .some(core.steam.localArtwork(app.id)) }
+            guard let local = localArtwork[app.id] ?? nil else { continue }
+            let online = art[app.id]
+            art[app.id] = SteamArtwork(name: online?.name, capsule: local.capsule ?? online?.capsule, hero: local.hero ?? online?.hero,
+                                       header: local.header ?? online?.header, logo: local.logo ?? online?.logo)
+        }
         let played = core.loadState().lastPlayed ?? [:]
         games = apps.map { app in
             Game(app: app, profile: core.profiles.profile(for: app.id), artwork: art[app.id],

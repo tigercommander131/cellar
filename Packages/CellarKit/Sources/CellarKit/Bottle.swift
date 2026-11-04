@@ -36,6 +36,11 @@ public struct RegistryValue: Codable, Sendable, Equatable {
     public static func retina(_ on: Bool) -> RegistryValue {
         RegistryValue(key: #"HKEY_CURRENT_USER\Software\Wine\Mac Driver"#, name: "RetinaMode", value: .string(on ? "y" : "n"))
     }
+
+    /// Wine's default keeps a game that asks to be topmost floating over other Mac apps after you switch
+    /// away. With this, and engine patch 0007, it's only on top while it's in front.
+    public static let onlyFloatWhenActive = RegistryValue(key: #"HKEY_CURRENT_USER\Software\Wine\Mac Driver"#,
+                                                          name: "WindowsFloatWhenInactive", value: .string("none"))
 }
 
 public enum RegistryFile {
@@ -141,6 +146,7 @@ public struct Bottle: Sendable {
     func defaultRegistry() -> [RegistryValue] {
         [
             RegistryValue.retina(false),
+            RegistryValue.onlyFloatWhenActive,
             // Steam's client stalls on start probing audio devices (Wine 11.0 winmm); games keep sound.
             .dll("steam.exe", "winecoreaudio.drv", "disabled"),
             // WPAD proxy auto-detection stalls installers and launchers.

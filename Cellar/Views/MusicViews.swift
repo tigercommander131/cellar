@@ -95,7 +95,9 @@ struct OverlayMusicTab: View {
 
     var body: some View {
         ZStack {
-            if model.spotifyPermission == .allowed {
+            if !model.spotifyChecked {
+                ProgressView().controlSize(.small)
+            } else if model.spotifyPermission == .allowed {
                 if model.spotify.hasTrack {
                     player
                 } else {

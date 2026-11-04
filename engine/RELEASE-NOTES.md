@@ -10,6 +10,8 @@ frankea/Whisky's `Libraries.tar.gz` v3.1.1 (GPL), whose sources are listed in th
 wine-mono 10.4.1 is the official wine-mono release.
 
 Patches 0004 and 0005 (fewer stutters) come from Recall (github.com/AsherJN/recall, Apache-2.0).
+Patch 0006 lets sound follow the Mac's default output while a game runs. Patch 0007 stops games that
+ask to be topmost from floating above other apps after you switch away.
 
 Cellar is not affiliated with CodeWeavers. CrossOver is a trademark of CodeWeavers, Inc.
 D3DMetal is never included: each Mac downloads it from Gcenx's Game Porting Toolkit build during setup.

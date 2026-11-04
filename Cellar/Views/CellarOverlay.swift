@@ -109,7 +109,7 @@ final class OverlayController {
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: OverlayView().environment(model).preferredColorScheme(.dark))
+        panel.contentView = OverlayHostingView(rootView: OverlayView().environment(model).preferredColorScheme(.dark))
         return panel
     }
 
@@ -286,6 +286,11 @@ enum OverlayHotkey: String, CaseIterable, Identifiable {
 
 private final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+}
+
+/// Lets the first click on a button or slider count. Otherwise it can be used up on the panel taking focus.
+private final class OverlayHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 struct OverlayHUD: View {

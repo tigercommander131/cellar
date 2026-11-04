@@ -129,6 +129,25 @@ public struct Steam: Sendable {
         return result.filter { !$0.isTool }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    // MARK: Artwork Steam already has
+
+    /// Art from Steam's own cache, which works with no network. nil for anything it hasn't saved.
+    public func localArtwork(_ appID: String) -> SteamArtwork? {
+        let folder = steamDir.appending(path: "appcache/librarycache/\(appID)", directoryHint: .isDirectory)
+        guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
+        var art = SteamArtwork()
+        for case let file as URL in walker {
+            switch file.lastPathComponent.lowercased() {
+            case "library_600x900.jpg", "library_capsule.jpg": art.capsule = file
+            case "library_hero.jpg": art.hero = file
+            case "library_header.jpg", "header.jpg": art.header = file
+            case "logo.png": art.logo = file
+            default: break
+            }
+        }
+        return art == SteamArtwork() ? nil : art
+    }
+
     // MARK: Offline mode
 
     var loginUsersURL: URL { steamDir.appending(path: "config/loginusers.vdf") }

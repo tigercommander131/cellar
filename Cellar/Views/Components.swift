@@ -22,6 +22,8 @@ struct PillButtonStyle: ButtonStyle {
 
 /// Small translucent buttons for the top bar and rows.
 struct GlassButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
@@ -29,6 +31,7 @@ struct GlassButtonStyle: ButtonStyle {
             .background(Capsule().fill(.white.opacity(configuration.isPressed ? 0.25 : 0.13)))
             .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
             .foregroundStyle(.white)
+            .opacity(isEnabled ? 1 : 0.4)
             .contentShape(Capsule())
     }
 }

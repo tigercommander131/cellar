@@ -68,8 +68,14 @@ struct NowPlayingCard: View {
     var body: some View {
         let game = model.runningGame
         ZStack(alignment: .bottomLeading) {
-            Color.black
-                .overlay { ArtworkImage(url: game?.artwork?.hero ?? game?.artwork?.header) }
+            // A wine-coloured wash shows through if there's no art at all, rather than a big black box.
+            LinearGradient(colors: [Color(red: 0.32, green: 0.06, blue: 0.13), Color(red: 0.08, green: 0.05, blue: 0.08)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                .overlay {
+                    AsyncImage(url: game?.artwork?.hero ?? game?.artwork?.header) { phase in
+                        if case .success(let image) = phase { image.resizable().scaledToFill() }
+                    }
+                }
                 .clipped()
             LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .top, endPoint: .bottom)
             HStack(alignment: .bottom) {

@@ -111,7 +111,31 @@ func tempDir() throws -> URL {
     }
 }
 
+@Suite struct LocalArtworkTests {
+    @Test func findsSteamsCachedImages() throws {
+        let paths = CellarPaths(root: try tempDir())
+        let steam = Steam(bottle: Bottle(paths: paths, name: "steam"))
+        #expect(steam.localArtwork("1") == nil)
+        let folder = steam.steamDir.appending(path: "appcache/librarycache/1/abc123", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data().write(to: folder.appending(path: "library_capsule.jpg"))
+        try Data().write(to: folder.appending(path: "library_hero.jpg"))
+        try Data().write(to: folder.deletingLastPathComponent().appending(path: "logo.png"))
+        let art = try #require(steam.localArtwork("1"))
+        #expect(art.capsule?.lastPathComponent == "library_capsule.jpg")
+        #expect(art.hero?.lastPathComponent == "library_hero.jpg")
+        #expect(art.logo?.lastPathComponent == "logo.png")
+        #expect(art.header == nil)
+    }
+}
+
 @Suite struct RegistryTests {
+    @Test func gamesOnlyFloatWhileInFront() {
+        let text = String(data: RegistryFile.render([.onlyFloatWhenActive]).dropFirst(2), encoding: .utf16LittleEndian) ?? ""
+        #expect(text.contains(#"[HKEY_CURRENT_USER\Software\Wine\Mac Driver]"#))
+        #expect(text.contains(#""WindowsFloatWhenInactive"="none""#))
+    }
+
     @Test func rendersRegedit5UTF16() throws {
         let data = RegistryFile.render([
             .dll("steam.exe", "winecoreaudio.drv", "disabled"),

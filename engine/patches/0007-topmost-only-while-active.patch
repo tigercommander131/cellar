@@ -1,0 +1,14 @@
+# Games that ask to be topmost no longer float above other apps after you switch away.
+--- a/dlls/winemac.drv/cocoa_app.m	2026-11-05 01:33:32
++++ b/dlls/winemac.drv/cocoa_app.m	2026-11-05 01:33:32
+@@ -759,7 +759,9 @@
+             NSInteger origLevel = [window level];
+             NSInteger newLevel = [window minimumLevelForActive:active];
+ 
+-            if (window.floating)
++            /* Cellar: only while it's meant to float. This raised topmost windows above the Dock even
++             * when WindowsFloatWhenInactive said not to, so games sat on top of other apps. */
++            if (window.floating && newLevel > NSNormalWindowLevel)
+             {
+                 if (minFloatingLevel <= maxNonfloatingLevel)
+                     minFloatingLevel = maxNonfloatingLevel + 1;

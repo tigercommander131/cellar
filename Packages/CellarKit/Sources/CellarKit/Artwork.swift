@@ -8,6 +8,14 @@ public struct SteamArtwork: Codable, Sendable, Equatable {
     public var hero: URL?
     public var header: URL?
     public var logo: URL?
+
+    public init(name: String? = nil, capsule: URL? = nil, hero: URL? = nil, header: URL? = nil, logo: URL? = nil) {
+        self.name = name
+        self.capsule = capsule
+        self.hero = hero
+        self.header = header
+        self.logo = logo
+    }
 }
 
 /// Looks up artwork through Steam's store API (new games keep their images under hashed

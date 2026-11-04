@@ -32,6 +32,7 @@ extension AppModel {
             return (permission, permission == .allowed ? (try? SpotifyPlayer.read()) ?? nil : nil)
         }.value
         spotifyPermission = permission
+        spotifyChecked = true
         if let state { spotify = state }
         if permission == .notRunning { spotify = SpotifyState() }
     }
@@ -52,9 +53,24 @@ extension AppModel {
         musicTask = nil
     }
 
+    /// Checks permission as the button's pressed: what was last read can be out of date, and closing
+    /// the overlay over a stale answer looks like the button did something odd.
     func music(_ command: SpotifyPlayer.Command) {
-        guard spotifyPermission == .allowed else { return connectSpotify() }
         Task {
+            let permission = await Task.detached { SpotifyPlayer.permission() }.value
+            spotifyPermission = permission
+            spotifyChecked = true
+            guard permission == .allowed else {
+                // The Music tab says what's needed. Outside the overlay there's only macOS's question.
+                if overlay.isVisible {
+                    overlayTab = .music
+                } else if permission == .notRunning {
+                    openSpotify()
+                } else {
+                    connectSpotify()
+                }
+                return
+            }
             await Task.detached { try? SpotifyPlayer.send(command) }.value
             // Spotify takes a moment to act on a command.
             try? await Task.sleep(for: .milliseconds(250))

@@ -10,6 +10,8 @@ public struct CellarState: Codable, Sendable, Equatable {
     public var skipBatteryPrompt: Bool?
     /// The Retina setting last written to the bottle (nil means off).
     public var retina: Bool?
+    /// The bottle has `RegistryValue.onlyFloatWhenActive`. Bottles made before 2.2 need it adding.
+    public var floatSettingApplied: Bool?
     public var steamSession: SteamSession?
     /// Default for games whose profile doesn't say: show the Metal performance overlay.
     public var showFPS: Bool?
@@ -259,7 +261,8 @@ public struct CellarCore: Sendable {
         var state = loadState()
 
         if isSteamRunning() {
-            if state.steamSession?.fingerprint != fp, startsGame {
+            // Registry changes wait for Steam to close, and each game reads this one when it starts.
+            if state.steamSession?.fingerprint != fp || state.floatSettingApplied != true, startsGame {
                 let games = runningGames()
                 guard games.isEmpty else {
                     throw CellarError("Close \(games.map(\.windowsName).joined(separator: ", ")) first: Steam has to restart with this game's settings.")
@@ -269,14 +272,14 @@ public struct CellarCore: Sendable {
         }
 
         try steamBottle.prepare(for: config.backend)
-        if let profile {
-            var values = profile.registry ?? []
-            let retina = profile.retina ?? false
-            if retina != (state.retina ?? false) { values.append(.retina(retina)) }
-            if !isSteamRunning(), !values.isEmpty {
-                try steamBottle.importRegistry(values, engine: engine, log: log("registry"))
-                state.retina = retina
-            }
+        var values = profile?.registry ?? []
+        let retina = profile?.retina ?? state.retina ?? false
+        if retina != (state.retina ?? false) { values.append(.retina(retina)) }
+        if state.floatSettingApplied != true { values.append(.onlyFloatWhenActive) }
+        if !isSteamRunning(), !values.isEmpty {
+            try steamBottle.importRegistry(values, engine: engine, log: log("registry"))
+            state.retina = retina
+            state.floatSettingApplied = true
         }
         steam.clearStaleLocks()
         if startsGame, profile?.writeSteamAppID == true, let appId { steam.writeSteamAppID(appId) }
