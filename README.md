@@ -35,7 +35,8 @@ Press **Shift+Tab** to open Cellar's overlay. The game stays in view, with four 
 - **Friends:** **Join** a friend's game or **Invite** them to yours. Join works in games that use Steam's
   lobbies; games with their own server browser are joined inside the game.
 - **Clips:** **Option+C** saves the last 30 seconds (or up to 2 minutes), with sound, to Movies › Cellar
-  Clips. Also screenshots, and trimming. Cellar asks for macOS's Screen Recording permission once; after that
+  Clips. Also screenshots. The Clips tab plays and trims them and shares them, by the share menu, by copy and
+  paste or by dragging, and can make a copy under 10 MB. Cellar asks for macOS's Screen Recording permission once; after that
   Clips start with every game, unless you turn that off in Settings. Only your game is recorded.
 - **Music:** control the Spotify app on your Mac, with cover art. macOS asks once whether Cellar can
   control it; there's no sign-in. A pop-up shows each new song during a game.

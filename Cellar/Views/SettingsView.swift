@@ -116,8 +116,8 @@ struct SettingsScreen: View {
                 }
                 .labelsHidden().fixedSize()
             }
-            SettingRow("Saved clips", "In Movies, in Cellar Clips.") {
-                Button("Show Clips") { model.showClipsFolder() }.buttonStyle(GlassButtonStyle())
+            SettingRow("Saved clips", "Watch, trim and share them in Clips. The files are in Movies › Cellar Clips.") {
+                Button("Show in Finder") { model.showClipsFolder() }.buttonStyle(GlassButtonStyle())
             }
             SettingRow("Open the overlay with", "Works during a game.") {
                 Picker("Open the overlay with", selection: $hotkey) {

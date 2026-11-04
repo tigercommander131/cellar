@@ -119,8 +119,8 @@ struct MenuBarPanel: View {
                 model.openSteam()
             }
             link("Clips") {
-                dismiss()
-                model.showClipsFolder()
+                model.tab = .clips
+                showCellar()
             }
             link("Settings") {
                 model.openSettings()

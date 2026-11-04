@@ -187,11 +187,10 @@ struct OverlayFriendRow: View {
 struct OverlayClipsTab: View {
     @Environment(AppModel.self) private var model
     @State private var onlyThisGame = true
-    @State private var trimming: ClipItem?
 
     var body: some View {
-        if let trimming {
-            ClipTrimView(clip: trimming) { self.trimming = nil }
+        if let clip = model.overlayClip {
+            ClipEditorView(clip: clip, inOverlay: true) { model.overlayClip = nil }
         } else {
             gallery
         }
@@ -226,7 +225,7 @@ struct OverlayClipsTab: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 250), spacing: 14)], spacing: 14) {
-                        ForEach(shown) { clip in ClipCard(clip: clip) { trimming = clip } }
+                        ForEach(shown) { clip in ClipCard(clip: clip) { model.overlayClip = clip } }
                     }
                     .padding(.bottom, 8)
                 }
@@ -312,7 +311,7 @@ struct ClipCard: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .contentShape(Rectangle())
-                .onTapGesture { model.open(clip) }
+                .onTapGesture(perform: trim)
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(clip.game).font(.cCallout.weight(.semibold)).lineLimit(1)
@@ -320,7 +319,7 @@ struct ClipCard: View {
                         .font(.cCaption).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
                 }
                 Spacer(minLength: 2)
-                if clip.kind == .video { icon("scissors", "Trim", run: trim) }
+                icon(clip.kind == .video ? "scissors" : "eye", clip.kind == .video ? "Watch and trim" : "View", run: trim)
                 icon("doc.on.doc", "Copy, to paste into Discord") { model.copy(clip) }
                 icon("folder", "Show in Finder") { model.reveal(clip) }
                 icon("trash", "Move to Trash") { model.delete(clip) }

@@ -175,7 +175,7 @@ struct SetupArt: View {
             )
         }
         .overlay {
-            GlassMark(line: .white.opacity(0.28), wine: .white.opacity(0.14))
+            GlassMark(glass: .white.opacity(0.26), wine: .white.opacity(0.1))
                 .frame(width: 320, height: 320)
         }
         .ignoresSafeArea()

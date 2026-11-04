@@ -1,4 +1,4 @@
-// Draws Cellar's app icon (the Clean Glass mark on a black tile) into the asset catalog.
+// Draws Cellar's app icon (a white tulip glass of red wine on a wine-red tile) into the asset catalog.
 // Usage: swift scripts/render-icon.swift Cellar/Assets.xcassets/AppIcon.appiconset
 import AppKit
 
@@ -15,38 +15,44 @@ func render(_ px: Int) -> Data {
     let inset = s * (1 - 824.0 / 1024.0) / 2
     let tile = NSRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
     let path = NSBezierPath(roundedRect: tile, xRadius: tile.width * 0.225, yRadius: tile.width * 0.225)
-    NSColor(red: 0.071, green: 0.063, blue: 0.082, alpha: 1).setFill()
-    path.fill()
-    NSColor(white: 1, alpha: 0.14).setStroke()
-    path.lineWidth = max(1, s / 256)
-    path.stroke()
-    // The Clean Glass mark, in a 100 by 100 space with y going up from the tile's bottom.
+    let color = { (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) in NSColor(red: r / 255, green: g / 255, blue: b / 255, alpha: a) }
+    NSGradient(colors: [color(150, 28, 58, 1), color(46, 7, 21, 1)])!.draw(in: path, angle: -90)
+    NSGraphicsContext.saveGraphicsState()
+    path.addClip()
+    NSGradient(colors: [color(255, 255, 255, 0.14), color(255, 255, 255, 0)])!
+        .draw(in: NSRect(x: tile.minX, y: tile.midY + tile.height * 0.1, width: tile.width, height: tile.height * 0.4), angle: -90)
+    NSGraphicsContext.restoreGraphicsState()
+    // A white tulip glass with tilted wine, in a 100 by 100 space with y going down.
     let unit = tile.width / 100
     let pt = { (x: CGFloat, y: CGFloat) in NSPoint(x: tile.minX + x * unit, y: tile.maxY - y * unit) }
+    let bowl = NSBezierPath()
+    bowl.move(to: pt(33, 12))
+    bowl.line(to: pt(67, 12))
+    bowl.curve(to: pt(50, 62), controlPoint1: pt(82, 34), controlPoint2: pt(72, 62))
+    bowl.curve(to: pt(33, 12), controlPoint1: pt(28, 62), controlPoint2: pt(18, 34))
+    bowl.close()
+    NSColor.white.setFill()
+    bowl.fill()
+    NSGraphicsContext.saveGraphicsState()
+    bowl.addClip()
     let wine = NSBezierPath()
-    wine.move(to: pt(33.5, 37))
-    wine.line(to: pt(66.5, 37))
-    wine.curve(to: pt(50, 57), controlPoint1: pt(66, 50), controlPoint2: pt(60, 57))
-    wine.curve(to: pt(33.5, 37), controlPoint1: pt(40, 57), controlPoint2: pt(34, 50))
+    wine.move(to: pt(14, 36))
+    wine.curve(to: pt(86, 30), controlPoint1: pt(38, 30), controlPoint2: pt(62, 37))
+    wine.line(to: pt(86, 70))
+    wine.line(to: pt(14, 70))
     wine.close()
-    NSColor(red: 0.788, green: 0.188, blue: 0.302, alpha: 1).setFill()
-    wine.fill()
-    let glass = NSBezierPath()
-    glass.move(to: pt(32, 19))
-    glass.line(to: pt(68, 19))
-    glass.curve(to: pt(50, 57), controlPoint1: pt(68.5, 44), controlPoint2: pt(61, 57))
-    glass.curve(to: pt(32, 19), controlPoint1: pt(39, 57), controlPoint2: pt(31.5, 44))
-    glass.close()
-    glass.move(to: pt(50, 57))
-    glass.line(to: pt(50, 77))
-    glass.move(to: pt(37, 79))
-    glass.line(to: pt(63, 79))
-    // Thicker at tiny sizes, where a thin line would disappear.
-    glass.lineWidth = unit * (px <= 32 ? 6 : 3.6)
-    glass.lineCapStyle = .round
-    glass.lineJoinStyle = .round
-    NSColor.white.setStroke()
-    glass.stroke()
+    NSGradient(colors: [color(244, 66, 106, 1), color(176, 22, 60, 1)])!.draw(in: wine, angle: -90)
+    NSGraphicsContext.restoreGraphicsState()
+    let stem = NSBezierPath()
+    stem.move(to: pt(46.5, 60))
+    stem.line(to: pt(53.5, 60))
+    stem.curve(to: pt(52, 83), controlPoint1: pt(52, 68), controlPoint2: pt(52, 76))
+    stem.line(to: pt(48, 83))
+    stem.curve(to: pt(46.5, 60), controlPoint1: pt(48, 76), controlPoint2: pt(48, 68))
+    stem.close()
+    NSColor.white.setFill()
+    stem.fill()
+    NSBezierPath(ovalIn: NSRect(x: pt(32, 0).x, y: pt(0, 89).y, width: 36 * unit, height: 7.5 * unit)).fill()
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }

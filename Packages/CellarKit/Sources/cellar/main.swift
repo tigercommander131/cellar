@@ -24,6 +24,7 @@ usage: cellar <command> [options]
   compat <appid>                 Will It Run: the verdict and reasons for a game
   clip-test <file.mp4>           Record a few seconds of the screen and save it
   clip-trim <in> <out> <from> <to>  Save part of a clip, times in seconds
+  clip-small <in> <out>          Save a copy of a clip under 10 MB if it can
   processes                      List running Windows programs
   stop                           Force-quit everything Cellar started
 
@@ -190,6 +191,11 @@ do {
         guard args.count == 4, let start = Double(args[2]), let end = Double(args[3]) else { fail(usage) }
         try await ClipEditor.trim(URL(fileURLWithPath: args[0]), from: start, to: end, saveTo: URL(fileURLWithPath: args[1]))
         print("Saved \(args[1])")
+
+    case "clip-small":
+        guard args.count == 2 else { fail(usage) }
+        let size = try await ClipEditor.makeSmall(URL(fileURLWithPath: args[0]), saveTo: URL(fileURLWithPath: args[1]))
+        print("Saved \(args[1]), \(size) bytes")
 
     case "processes":
         for p in core.runningProcesses() { print("\(p.pid)\t\(p.windowsName)") }

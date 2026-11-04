@@ -400,6 +400,15 @@ public enum ClipLibrary {
         return text.isEmpty ? "Game" : text
     }
 
+    /// The entry for one file that's just been saved.
+    public static func item(at url: URL) -> ClipItem? {
+        let values = try? url.resourceValues(forKeys: [.creationDateKey, .fileSizeKey])
+        let ext = url.pathExtension.lowercased()
+        guard ext == "mp4" || ext == "png", let values else { return nil }
+        return ClipItem(url: url, game: url.deletingLastPathComponent().lastPathComponent, date: values.creationDate ?? Date(),
+                        size: Int64(values.fileSize ?? 0), kind: ext == "mp4" ? .video : .screenshot)
+    }
+
     /// Newest first. `game` narrows it to one game's folder.
     public static func items(game: String? = nil, root: URL = ClipLibrary.folder) -> [ClipItem] {
         let fm = FileManager.default
@@ -445,14 +454,159 @@ public enum ClipEditor {
         (max(duration - seconds, 0), duration)
     }
 
+    /// The size a small copy aims for. Many chat apps limit free uploads to about this.
+    public static let smallLimit = 10_000_000
+
+    /// Re-encodes to a bitrate worked out from the clip's length, because Apple's export presets leave
+    /// game footage far too big (a 63 MB clip came out at 43 MB at 640x480). Returns the size it got
+    /// to, which can still be over the limit if the clip is too long for that.
+    public static func makeSmall(_ source: URL, saveTo output: URL, limit: Int = ClipEditor.smallLimit) async throws -> Int {
+        let length = try await AVURLAsset(url: source).load(.duration).seconds
+        guard length > 0 else { throw CellarError("Couldn't read this clip.") }
+        let audioRate = 96_000
+        var size = 0
+        // The encoder can overshoot what it's asked for, so it gets a couple more tries.
+        for margin in [0.9, 0.7, 0.5] {
+            let rate = max(Int(Double(limit) * 8 * margin / length) - audioRate, 300_000)
+            try await encode(source, to: output, videoRate: rate, audioRate: audioRate)
+            size = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            if size > 0, size <= limit { return size }
+            if rate == 300_000 { break }
+        }
+        guard size > 0 else { throw CellarError("Couldn't make a small copy of this clip.") }
+        return size
+    }
+
+    /// The picture height that looks best at a bitrate. Less detail at a sharper size looks worse.
+    static func smallHeight(forRate rate: Int) -> Int {
+        switch rate {
+        case 4_000_000...: 1080
+        case 1_800_000...: 720
+        case 900_000...: 540
+        default: 360
+        }
+    }
+
+    private static func encode(_ source: URL, to output: URL, videoRate: Int, audioRate: Int) async throws {
+        let asset = AVURLAsset(url: source)
+        guard let video = try await asset.loadTracks(withMediaType: .video).first else {
+            throw CellarError("This clip has no video.")
+        }
+        let audio = try await asset.loadTracks(withMediaType: .audio).first
+        let natural = try await video.load(.naturalSize)
+        let transform = try await video.load(.preferredTransform)
+        let height = min(smallHeight(forRate: videoRate), Int(natural.height))
+        // Video encoders need even sizes.
+        let width = Int((natural.width * CGFloat(height) / natural.height / 2).rounded()) * 2
+        let evenHeight = height / 2 * 2
+
+        try? FileManager.default.removeItem(at: output)
+        let reader = try AVAssetReader(asset: asset)
+        let writer = try AVAssetWriter(outputURL: output, fileType: .mp4)
+        writer.shouldOptimizeForNetworkUse = true
+
+        let videoOut = AVAssetReaderTrackOutput(track: video, outputSettings: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: evenHeight,
+        ])
+        videoOut.alwaysCopiesSampleData = false
+        reader.add(videoOut)
+        let videoIn = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: evenHeight,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: videoRate,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                AVVideoExpectedSourceFrameRateKey: 30,
+                AVVideoMaxKeyFrameIntervalKey: 120,
+            ] as [String: Any],
+        ])
+        videoIn.transform = transform
+        writer.add(videoIn)
+
+        var audioOut: AVAssetReaderTrackOutput?
+        var audioIn: AVAssetWriterInput?
+        if let audio {
+            let output = AVAssetReaderTrackOutput(track: audio, outputSettings: [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: 48_000,
+                AVNumberOfChannelsKey: 2,
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false,
+            ])
+            reader.add(output)
+            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+                AVFormatIDKey: kAudioFormatMPEG4AAC,
+                AVSampleRateKey: 48_000,
+                AVNumberOfChannelsKey: 2,
+                AVEncoderBitRateKey: audioRate,
+            ])
+            writer.add(input)
+            audioOut = output
+            audioIn = input
+        }
+
+        guard reader.startReading(), writer.startWriting() else {
+            throw reader.error ?? writer.error ?? CellarError("Couldn't start making a small copy.")
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        // Both tracks go in from one loop, whichever is ready, so neither can hold the other up.
+        // 60 frames a second wastes a small file's bits, so it keeps at most 30.
+        var videoDone = false
+        var audioDone = audioOut == nil
+        var nextFrame = 0.0
+        while !videoDone || !audioDone {
+            var moved = false
+            if !videoDone, videoIn.isReadyForMoreMediaData {
+                moved = true
+                if let sample = videoOut.copyNextSampleBuffer() {
+                    let time = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                    if time >= nextFrame - 0.002 {
+                        nextFrame = max(nextFrame + 1.0 / 30, time)
+                        guard videoIn.append(sample) else { break }
+                    }
+                } else {
+                    videoIn.markAsFinished()
+                    videoDone = true
+                }
+            }
+            if !audioDone, let audioOut, let audioIn, audioIn.isReadyForMoreMediaData {
+                moved = true
+                if let sample = audioOut.copyNextSampleBuffer() {
+                    guard audioIn.append(sample) else { break }
+                } else {
+                    audioIn.markAsFinished()
+                    audioDone = true
+                }
+            }
+            if !moved { try await Task.sleep(for: .milliseconds(3)) }
+        }
+        if reader.status == .failed || writer.status == .failed {
+            reader.cancelReading()
+            writer.cancelWriting()
+            throw writer.error ?? reader.error ?? CellarError("Couldn't make a small copy of this clip.")
+        }
+        await writer.finishWriting()
+        if writer.status != .completed {
+            throw writer.error ?? CellarError("Couldn't make a small copy of this clip.")
+        }
+    }
+
     /// "Teardown 2026-11-02.mp4" becomes "Teardown 2026-11-02 trimmed.mp4", then "trimmed 2" and on.
-    public static func trimmedURL(for source: URL) -> URL {
+    public static func copyURL(for source: URL, suffix: String) -> URL {
         let folder = source.deletingLastPathComponent()
-        let name = source.deletingPathExtension().lastPathComponent
-        var candidate = folder.appending(path: "\(name) trimmed.\(source.pathExtension)")
+        var name = source.deletingPathExtension().lastPathComponent
+        // Copies of copies don't pile up their names.
+        for existing in [" trimmed", " small"] where name.hasSuffix(existing) { name.removeLast(existing.count) }
+        var candidate = folder.appending(path: "\(name) \(suffix).\(source.pathExtension)")
         var number = 2
         while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = folder.appending(path: "\(name) trimmed \(number).\(source.pathExtension)")
+            candidate = folder.appending(path: "\(name) \(suffix) \(number).\(source.pathExtension)")
             number += 1
         }
         return candidate

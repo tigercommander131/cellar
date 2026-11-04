@@ -41,6 +41,7 @@ final class OverlayController {
         guard let model, let screen = NSScreen.main else { return }
         isDemo = demo
         if let tab { model.overlayTab = tab }
+        model.overlayClip = nil
         let panel = self.panel ?? makePanel(model)
         self.panel = panel
         // A fresh view each time, so it animates in and nothing's left half-done from last time.
@@ -123,12 +124,15 @@ final class OverlayController {
         if code == UInt16(kVK_Escape) {
             if typing {
                 panel?.makeFirstResponder(nil)
+            } else if model.overlayClip != nil {
+                model.overlayClip = nil
             } else {
                 hide()
             }
             return true
         }
-        guard !typing, !modified else { return false }
+        // The clip editor uses the arrows and space for itself.
+        guard !typing, !modified, model.overlayClip == nil else { return false }
         let tabs = OverlayTab.allCases
         let current = tabs.firstIndex(of: model.overlayTab) ?? 0
         switch code {
@@ -339,6 +343,7 @@ struct OverlayView: View {
                 .opacity(appeared ? 1 : 0)
             }
             .animation(.smooth(duration: 0.22), value: model.overlayTab)
+            .animation(.smooth(duration: 0.22), value: model.overlayClip == nil)
         }
         .tint(.white)
         .ignoresSafeArea()
@@ -355,7 +360,7 @@ struct OverlayView: View {
         let wanted: CGFloat = switch model.overlayTab {
         case .friends: 270
         case .music: 290
-        case .clips: 400
+        case .clips: model.overlayClip == nil ? 400 : 470
         case .game: 470
         }
         return min(wanted, available * 0.56)

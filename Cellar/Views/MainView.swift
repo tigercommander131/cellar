@@ -14,6 +14,7 @@ struct MainView: View {
                 switch model.tab {
                 case .games:
                     if model.showAllGames { AllGamesView().padding(.top, 58) } else { GamesView() }
+                case .clips: ClipsScreen().padding(.top, 58)
                 case .friends: FriendsView().padding(.top, 58)
                 case .settings: SettingsScreen().padding(.top, 58)
                 }
@@ -24,6 +25,16 @@ struct MainView: View {
                 GameScreen(game: game)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+            if let clip = model.viewingClip {
+                ClipEditorView(clip: clip) { model.viewingClip = nil }
+                    .padding(.horizontal, 28)
+                    .padding(.top, 34)
+                    .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.ground)
+                    .id(clip.id)
+                    .transition(.opacity)
+            }
             if let toast = model.toast {
                 Toast(text: toast) { model.toast = nil }
                     .padding(.top, 62)
@@ -33,6 +44,7 @@ struct MainView: View {
         .animation(.smooth(duration: 0.28), value: model.tab)
         .animation(.smooth(duration: 0.28), value: model.showAllGames)
         .animation(.smooth(duration: 0.26), value: model.settingsGame?.id)
+        .animation(.smooth(duration: 0.22), value: model.viewingClip == nil)
         .animation(.smooth, value: model.toast)
         .task { model.startFriends() }
     }
@@ -43,10 +55,7 @@ struct TopBar: View {
 
     var body: some View {
         HStack(spacing: 22) {
-            HStack(spacing: 9) {
-                AppMark(size: 26)
-                Wordmark()
-            }
+            Wordmark()
             if model.tab == .settings {
                 Button { model.closeSettings() } label: {
                     Label("Back to \(model.settingsReturnTab.rawValue)", systemImage: "chevron.left")

@@ -565,9 +565,16 @@ func tempDir() throws -> URL {
     @Test func namesTrimmedCopiesWithoutOverwriting() throws {
         let dir = try tempDir()
         let source = dir.appending(path: "Game.mp4")
-        #expect(ClipEditor.trimmedURL(for: source).lastPathComponent == "Game trimmed.mp4")
+        #expect(ClipEditor.copyURL(for: source, suffix: "trimmed").lastPathComponent == "Game trimmed.mp4")
         try Data().write(to: dir.appending(path: "Game trimmed.mp4"))
-        #expect(ClipEditor.trimmedURL(for: source).lastPathComponent == "Game trimmed 2.mp4")
+        #expect(ClipEditor.copyURL(for: source, suffix: "trimmed").lastPathComponent == "Game trimmed 2.mp4")
+        #expect(ClipEditor.smallHeight(forRate: 2_300_000) == 720)
+        #expect(ClipEditor.smallHeight(forRate: 500_000) == 360)
+        // A copy of a copy doesn't become "Game trimmed small".
+        #expect(ClipEditor.copyURL(for: dir.appending(path: "Game trimmed.mp4"), suffix: "small").lastPathComponent == "Game small.mp4")
+        try Data().write(to: source)
+        #expect(ClipLibrary.item(at: source)?.kind == .video)
+        #expect(ClipLibrary.item(at: dir.appending(path: "nothing.txt")) == nil)
     }
 
     @Test func keepsTheLastPart() {

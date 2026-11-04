@@ -18,11 +18,11 @@ struct Game: Identifiable, Equatable {
 }
 
 enum Tab: String, CaseIterable, Identifiable {
-    case games = "Games", friends = "Friends", settings = "Settings"
+    case games = "Games", clips = "Clips", friends = "Friends", settings = "Settings"
     var id: String { rawValue }
 
     /// Settings has its own button at the other end of the top bar.
-    static let navigation: [Tab] = [.games, .friends]
+    static let navigation: [Tab] = [.games, .clips, .friends]
 }
 
 @MainActor
@@ -62,6 +62,10 @@ final class AppModel {
 
     var tab: Tab = .games
     var showAllGames = false
+    /// The clip open in the Clips tab.
+    var viewingClip: ClipItem?
+    /// The clip open in the overlay.
+    var overlayClip: ClipItem?
     /// Where leaving Settings goes back to.
     var settingsReturnTab: Tab = .games
     var focusedGameID: String?
@@ -298,6 +302,13 @@ final class AppModel {
         case "settings":
             tab = .settings
             content = AnyView(MainView())
+        case "clips":
+            tab = .clips
+            content = AnyView(MainView())
+        case "clip":
+            tab = .clips
+            viewingClip = ClipLibrary.item(at: URL(fileURLWithPath: parts[1]))
+            content = AnyView(MainView())
         case "game":
             settingsGame = games.first { $0.id == parts[1] }
             content = AnyView(MainView())
@@ -306,7 +317,7 @@ final class AppModel {
             content = AnyView(OverlayView())
         case "trim":
             let clip = ClipItem(url: URL(fileURLWithPath: parts[1]), game: "Test", date: Date(), size: 0, kind: .video)
-            content = AnyView(ClipTrimView(clip: clip, close: {}).padding(20))
+            content = AnyView(ClipEditorView(clip: clip, inOverlay: true, close: {}).padding(20))
         case "advice":
             guard let game = games.first(where: { $0.id == parts[1] }) else { return }
             content = AnyView(ScrollView { RecommendedSettingsView(game: game).padding(20) }.frame(width: 520, height: 720))

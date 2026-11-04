@@ -26,63 +26,74 @@ enum Theme {
     static let positive = Color(red: 0.494, green: 0.886, blue: 0.659)
 }
 
-/// The Clean Glass logo's parts, in a 100 by 100 space.
+/// The logo's glass, in a 100 by 100 space. A tulip bowl, a tapered stem and a flat foot.
 private enum GlassShape {
     static func bowl(_ p: inout Path, _ t: (CGFloat, CGFloat) -> CGPoint) {
-        p.move(to: t(32, 19))
-        p.addLine(to: t(68, 19))
-        p.addCurve(to: t(50, 57), control1: t(68.5, 44), control2: t(61, 57))
-        p.addCurve(to: t(32, 19), control1: t(39, 57), control2: t(31.5, 44))
+        p.move(to: t(33, 12))
+        p.addLine(to: t(67, 12))
+        p.addCurve(to: t(50, 62), control1: t(82, 34), control2: t(72, 62))
+        p.addCurve(to: t(33, 12), control1: t(28, 62), control2: t(18, 34))
         p.closeSubpath()
     }
 
+    /// A little tilted, so it looks like liquid. Clip it to the bowl.
     static func wine(_ p: inout Path, _ t: (CGFloat, CGFloat) -> CGPoint) {
-        p.move(to: t(33.5, 37))
-        p.addLine(to: t(66.5, 37))
-        p.addCurve(to: t(50, 57), control1: t(66, 50), control2: t(60, 57))
-        p.addCurve(to: t(33.5, 37), control1: t(40, 57), control2: t(34, 50))
+        p.move(to: t(14, 36))
+        p.addCurve(to: t(86, 30), control1: t(38, 30), control2: t(62, 37))
+        p.addLine(to: t(86, 70))
+        p.addLine(to: t(14, 70))
         p.closeSubpath()
     }
 
-    static func foot(_ p: inout Path, _ t: (CGFloat, CGFloat) -> CGPoint) {
-        p.move(to: t(50, 57))
-        p.addLine(to: t(50, 77))
-        p.move(to: t(37, 79))
-        p.addLine(to: t(63, 79))
+    static func base(_ p: inout Path, _ t: (CGFloat, CGFloat) -> CGPoint) {
+        p.move(to: t(46.5, 60))
+        p.addLine(to: t(53.5, 60))
+        p.addCurve(to: t(52, 83), control1: t(52, 68), control2: t(52, 76))
+        p.addLine(to: t(48, 83))
+        p.addCurve(to: t(46.5, 60), control1: t(48, 76), control2: t(48, 68))
+        p.closeSubpath()
+        let a = t(32, 81.5), b = t(68, 89)
+        p.addEllipse(in: CGRect(x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y))
     }
 }
 
-/// The glass by itself: a white outline holding red wine.
+/// The glass by itself, for large art.
 struct GlassMark: View {
-    var line: Color = .white
+    var glass: Color = .white
     var wine: Color = Theme.wine
 
     var body: some View {
         Canvas { context, size in
             let scale = min(size.width, size.height) / 100
             let t = { (x: CGFloat, y: CGFloat) in CGPoint(x: x * scale, y: y * scale) }
-            var fill = Path()
-            GlassShape.wine(&fill, t)
-            context.fill(fill, with: .color(wine))
-            let stroke = StrokeStyle(lineWidth: 3.6 * scale, lineCap: .round, lineJoin: .round)
-            var outline = Path()
-            GlassShape.bowl(&outline, t)
-            GlassShape.foot(&outline, t)
-            context.stroke(outline, with: .color(line), style: stroke)
+            var bowl = Path()
+            GlassShape.bowl(&bowl, t)
+            var base = Path()
+            GlassShape.base(&base, t)
+            var liquid = Path()
+            GlassShape.wine(&liquid, t)
+            context.fill(bowl, with: .color(glass))
+            context.fill(base, with: .color(glass))
+            var inside = context
+            inside.clip(to: bowl)
+            inside.fill(liquid, with: .color(wine))
         }
     }
 }
 
-/// The app's mark: the glass on a black tile.
+/// The app's icon, for the few places it appears inside the app.
 struct AppMark: View {
     var size: CGFloat
 
     var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-            .fill(Color(red: 0.071, green: 0.063, blue: 0.082))
-            .overlay(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous).strokeBorder(.white.opacity(0.18)))
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            // The icon file has empty margins, as macOS expects. This crops to the tile.
+            .frame(width: size * 1.243, height: size * 1.243)
             .frame(width: size, height: size)
-            .overlay { GlassMark().frame(width: size, height: size) }
+            .accessibilityHidden(true)
     }
 }
 
@@ -99,25 +110,16 @@ struct Wordmark: View {
 }
 
 extension NSImage {
-    /// The glass as a menu bar icon, which macOS tints to suit the bar.
+    /// The glass as a solid shape, which macOS tints to suit the menu bar.
     static let cellarMenuBar: NSImage = {
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { rect in
             let scale = rect.width / 100
             let t = { (x: CGFloat, y: CGFloat) in CGPoint(x: x * scale, y: y * scale) }
-            var outline = Path()
-            GlassShape.bowl(&outline, t)
-            GlassShape.foot(&outline, t)
-            var fill = Path()
-            GlassShape.wine(&fill, t)
-            let ink = NSColor.black
-            ink.setFill()
-            NSBezierPath(cgPath: fill.cgPath).fill()
-            ink.setStroke()
-            let path = NSBezierPath(cgPath: outline.cgPath)
-            path.lineWidth = 7.5 * scale
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            path.stroke()
+            var solid = Path()
+            GlassShape.bowl(&solid, t)
+            GlassShape.base(&solid, t)
+            NSColor.black.setFill()
+            NSBezierPath(cgPath: solid.cgPath).fill()
             return true
         }
         image.isTemplate = true

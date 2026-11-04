@@ -4,6 +4,7 @@ A new look for the whole app.
 
 - **One Games screen.** Full-screen game art with silent trailers, big covers, and friends in the corner.
 - **A new logo and typeface.**
+- **A Clips tab.** Watch, trim and send your clips without leaving Cellar. Share opens your Mac's share menu, Copy pastes into Discord or Messages, and you can drag a clip straight into a chat. Make Small Copy gets a clip under 10 MB for apps that limit file size.
 - **Simpler game settings.** Best looks, Balanced or Battery saver, plus recommended settings for your Mac. The rest is behind Show Advanced.
 - **Settings inside the app,** in five plain categories.
 - **A new overlay.** The game stays in view, with Friends, Clips, Music and Game tiles along the bottom.

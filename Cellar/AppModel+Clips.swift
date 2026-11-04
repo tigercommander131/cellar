@@ -236,7 +236,16 @@ extension AppModel {
     func copy(_ clip: ClipItem) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([clip.url as NSURL])
-        toast = "Copied. Paste it into Discord or Messages."
+        tell("Copied. Paste it into Discord or Messages.", systemImage: "doc.on.doc")
+    }
+
+    /// A short message wherever it'll be seen: the overlay covers the main window's toasts.
+    func tell(_ text: String, systemImage: String) {
+        if overlay.isVisible {
+            overlay.showHUD(text, systemImage: systemImage)
+        } else {
+            toast = text
+        }
     }
 
     func delete(_ clip: ClipItem) {
