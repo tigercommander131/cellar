@@ -37,8 +37,7 @@ struct CellarApp: App {
             }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
-                    model.tab = .settings
-                    model.settingsGame = nil
+                    model.openSettings()
                     NSApp.activate()
                 }
                 .keyboardShortcut(",", modifiers: .command)

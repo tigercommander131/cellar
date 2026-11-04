@@ -125,14 +125,14 @@ struct OverlayMusicTab: View {
     }
 
     private var player: some View {
-        HStack(spacing: 40) {
+        HStack(spacing: 32) {
             SpotifyCover(url: model.spotify.artwork)
-                .frame(width: 250, height: 250)
+                .frame(width: 220, height: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(model.spotify.name ?? "").font(.cellar(30, .heavy)).lineLimit(2)
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.spotify.name ?? "").font(.cellar(22, .heavy)).lineLimit(2)
                     Text(model.spotify.artist ?? "").font(.cTitle3.weight(.medium)).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
                     Text(model.spotify.album ?? "").font(.cCallout).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
                 }
@@ -142,7 +142,7 @@ struct OverlayMusicTab: View {
             }
             .frame(maxWidth: 480, alignment: .leading)
         }
-        .padding(24)
+        .padding(16)
     }
 }
 

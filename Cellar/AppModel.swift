@@ -62,6 +62,8 @@ final class AppModel {
 
     var tab: Tab = .games
     var showAllGames = false
+    /// Where leaving Settings goes back to.
+    var settingsReturnTab: Tab = .games
     var focusedGameID: String?
     var settingsGame: Game?
     var friends: [SteamFriend] = []
@@ -582,6 +584,16 @@ final class AppModel {
         var state = core.loadState()
         state.menuBarIcon = on ? nil : false
         try? core.saveState(state)
+    }
+
+    func openSettings() {
+        settingsGame = nil
+        if tab != .settings { settingsReturnTab = tab }
+        tab = .settings
+    }
+
+    func closeSettings() {
+        tab = settingsReturnTab
     }
 
     func setTrailersEnabled(_ on: Bool) {

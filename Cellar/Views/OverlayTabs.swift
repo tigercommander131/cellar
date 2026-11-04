@@ -244,10 +244,8 @@ struct OverlayClipsTab: View {
     private var recorderCard: some View {
         OverlayCard {
             HStack(spacing: 16) {
-                Toggle("", isOn: Binding(get: { model.clipsRecording || model.clipsStarting }, set: { model.setClipsRecording($0) }))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .tint(.red)
+                Toggle("Clips", isOn: Binding(get: { model.clipsRecording || model.clipsStarting }, set: { model.setClipsRecording($0) }))
+                    .toggleStyle(CellarToggleStyle())
                     .disabled(model.clipsStarting)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.clipsRecording ? "Clips are on" : "Clips are off").font(.cHeadline)

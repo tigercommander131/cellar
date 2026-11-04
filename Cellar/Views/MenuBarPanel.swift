@@ -123,7 +123,7 @@ struct MenuBarPanel: View {
                 model.showClipsFolder()
             }
             link("Settings") {
-                model.tab = .settings
+                model.openSettings()
                 showCellar()
             }
             Spacer()

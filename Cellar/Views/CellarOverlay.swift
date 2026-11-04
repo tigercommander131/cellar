@@ -43,6 +43,8 @@ final class OverlayController {
         if let tab { model.overlayTab = tab }
         let panel = self.panel ?? makePanel(model)
         self.panel = panel
+        // A fresh view each time, so it animates in and nothing's left half-done from last time.
+        panel.contentView = OverlayHostingView(rootView: OverlayView().environment(model).preferredColorScheme(.dark))
         previousApp = NSWorkspace.shared.frontmostApplication
         shownAt = Date()
         watchSpaces()
@@ -98,7 +100,6 @@ final class OverlayController {
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = OverlayHostingView(rootView: OverlayView().environment(model).preferredColorScheme(.dark))
         return panel
     }
 
@@ -310,11 +311,14 @@ struct OverlayView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let height = panelHeight(in: geometry.size.height)
             ZStack(alignment: .bottom) {
-                LinearGradient(stops: [.init(color: .black.opacity(0.1), location: 0), .init(color: .black.opacity(0.42), location: 0.22),
-                                       .init(color: .black.opacity(0.94), location: 0.5)],
+                // Darkest just behind the strip, so as much of the game as possible stays clear.
+                LinearGradient(stops: [.init(color: .black.opacity(0.08), location: 0),
+                                       .init(color: .black.opacity(0.3), location: dimStart(height, of: geometry.size.height)),
+                                       .init(color: .black.opacity(0.9), location: min(dimStart(height, of: geometry.size.height) + 0.2, 1))],
                                startPoint: .top, endPoint: .bottom)
-                VStack(spacing: 14) {
+                VStack(spacing: 12) {
                     // Clicking the visible part of the game goes back to it.
                     Color.clear
                         .contentShape(Rectangle())
@@ -322,26 +326,43 @@ struct OverlayView: View {
                     OverlayHeader()
                     OverlayTiles()
                     panel
-                        .frame(height: min(470, geometry.size.height * 0.56))
-                        .padding(18)
+                        .frame(height: height)
+                        .padding(16)
                         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(red: 0.07, green: 0.065, blue: 0.09).opacity(0.97)))
                         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.line))
                     OverlayHints()
                 }
-                .frame(maxWidth: 1320)
+                .frame(maxWidth: 1240)
                 .padding(.horizontal, 40)
-                .padding(.bottom, 22)
+                .padding(.bottom, 20)
                 .offset(y: appeared ? 0 : 28)
                 .opacity(appeared ? 1 : 0)
             }
+            .animation(.smooth(duration: 0.22), value: model.overlayTab)
         }
+        .tint(.white)
         .ignoresSafeArea()
         .overlay(alignment: .top) {
             if let toast = model.toast {
                 Toast(text: toast) { model.toast = nil }.padding(.top, 26)
             }
         }
-        .onAppear { withAnimation(.smooth(duration: 0.26)) { appeared = true } }
+        .onAppear { withAnimation(.smooth(duration: 0.24)) { appeared = true } }
+    }
+
+    /// Each tile only takes the room it needs, so short ones leave more of the game showing.
+    private func panelHeight(in available: CGFloat) -> CGFloat {
+        let wanted: CGFloat = switch model.overlayTab {
+        case .friends: 270
+        case .music: 290
+        case .clips: 400
+        case .game: 470
+        }
+        return min(wanted, available * 0.56)
+    }
+
+    private func dimStart(_ panel: CGFloat, of total: CGFloat) -> CGFloat {
+        max(0.1, 1 - (panel + 250) / max(total, 1))
     }
 
     private var panel: some View {

@@ -47,22 +47,31 @@ struct TopBar: View {
                 AppMark(size: 26)
                 Wordmark()
             }
-            ForEach(Tab.navigation) { tab in
-                Button {
-                    model.tab = tab
-                    model.showAllGames = false
-                } label: {
-                    Text(tab.rawValue)
-                        .font(.cellar(14, model.tab == tab ? .bold : .medium))
-                        .foregroundStyle(model.tab == tab ? .white : .white.opacity(0.72))
-                        .padding(.vertical, 8)
-                        .overlay(alignment: .bottom) {
-                            if model.tab == tab { Capsule().fill(.white).frame(height: 2) }
-                        }
-                        .contentShape(Rectangle())
+            if model.tab == .settings {
+                Button { model.closeSettings() } label: {
+                    Label("Back to \(model.settingsReturnTab.rawValue)", systemImage: "chevron.left")
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut(KeyEquivalent(Character(String((Tab.navigation.firstIndex(of: tab) ?? 0) + 1))), modifiers: .command)
+                .buttonStyle(PillButtonStyle())
+                .keyboardShortcut(.cancelAction)
+                .help("Leave Settings (Esc)")
+            } else {
+                ForEach(Tab.navigation) { tab in
+                    Button {
+                        model.tab = tab
+                        model.showAllGames = false
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.cellar(14, model.tab == tab ? .bold : .medium))
+                            .foregroundStyle(model.tab == tab ? .white : .white.opacity(0.72))
+                            .padding(.vertical, 8)
+                            .overlay(alignment: .bottom) {
+                                if model.tab == tab { Capsule().fill(.white).frame(height: 2) }
+                            }
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(KeyEquivalent(Character(String((Tab.navigation.firstIndex(of: tab) ?? 0) + 1))), modifiers: .command)
+                }
             }
             // The title bar is hidden, so the empty part of the top bar moves the window.
             Color.clear
@@ -74,13 +83,10 @@ struct TopBar: View {
                     .help("Force-quit Steam and every game (⇧⌘K)")
             }
             SteamButton()
-            Button {
-                model.tab = .settings
-                model.showAllGames = false
-            } label: {
-                Text("Settings")
+            if model.tab != .settings {
+                Button("Settings") { model.openSettings() }
+                    .buttonStyle(GlassButtonStyle())
             }
-            .buttonStyle(GlassButtonStyle())
         }
         .padding(.leading, 84)   // clear of the window buttons
         .padding(.trailing, 22)
@@ -240,11 +246,11 @@ struct ArtworkLogo: View {
         AsyncImage(url: url) { phase in
             if case .success(let image) = phase {
                 image.resizable().scaledToFit()
-                    .frame(maxWidth: 420, maxHeight: 130, alignment: .leading)
+                    .frame(maxWidth: 280, maxHeight: 84, alignment: .leading)
                     .shadow(color: .black.opacity(0.55), radius: 10)
             } else {
                 Text(name)
-                    .font(.cellar(44, .heavy))
+                    .font(.cellar(34, .heavy))
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
                     .shadow(color: .black.opacity(0.55), radius: 10)

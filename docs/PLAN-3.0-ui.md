@@ -21,7 +21,7 @@ References from Mobbin: Apple Games and Xbox for the console feel, Linear and Bu
 ## To release
 
 1. In `packs.json`, change the engine's version, URL and `archiveRoot` to `cx26.3.0-5`, and push. The Packs workflow publishes it.
-2. `REPO=tigercommander131/cellar scripts/release-app.sh 3.0.0 13` (bump the build if the app has changed since).
+2. `REPO=tigercommander131/cellar scripts/release-app.sh 3.0.0 14` (bump the build if the app has changed since).
 3. `defaults delete com.tigercommander131.cellar manifestURL` on Joel's Mac, which currently uses `.work/packs-r5.json`.
 
 ## Not proven yet
