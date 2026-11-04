@@ -3,10 +3,10 @@
   "packs": [
     {
       "kind": "engine",
-      "version": "cx26.3.0-4",
-      "url": "https://github.com/tigercommander131/cellar/releases/download/engine-cx26.3.0-4/cellar-engine-cx26.3.0-4.tar.xz",
+      "version": "cx26.3.0-5",
+      "url": "https://github.com/tigercommander131/cellar/releases/download/engine-cx26.3.0-5/cellar-engine-cx26.3.0-5.tar.xz",
       "sha256": "@ENGINE_SHA@",
-      "archiveRoot": "cellar-engine-cx26.3.0-4"
+      "archiveRoot": "cellar-engine-cx26.3.0-5"
     },
     {
       "kind": "dxmt",

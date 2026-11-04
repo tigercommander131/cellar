@@ -14,7 +14,7 @@ Status: **on Joel's Mac only, not released.** Prototypes: [Cellar Redesign Direc
 | Colour | White controls, colour from game art |
 | Trailers | Silent, whenever online. Off while a game runs or Cellar isn't in front, on a switch in Settings |
 | Friends | Own tab, plus up to four in the corner of Games |
-| Logo | Clean Glass, with a lowercase `cellar` wordmark in Sora |
+| Logo | A white tulip glass of red wine on a wine-red tile, with a lowercase `cellar` wordmark in Sora |
 
 References from Mobbin: Apple Games and Xbox for the console feel, Linear and Buffer for settings.
 
