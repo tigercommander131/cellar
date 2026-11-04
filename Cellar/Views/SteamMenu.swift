@@ -17,6 +17,7 @@ struct SteamButton: View {
                     Circle().fill(status.color).frame(width: 8, height: 8)
                 }
                 Text(model.steamUser ?? "Steam")
+                    .font(.cellar(12.5, .semibold))
                 if model.steamOffline || model.switchingConnection {
                     Text(status.title).foregroundStyle(status.color)
                 }
@@ -45,16 +46,16 @@ struct SteamMenu: View {
                     .font(.system(size: 30))
                     .foregroundStyle(.white.opacity(0.75))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(model.steamUser ?? "Not signed in").font(.headline).lineLimit(1)
+                    Text(model.steamUser ?? "Not signed in").font(.cHeadline).lineLimit(1)
                     HStack(spacing: 5) {
                         Circle().fill(status.color).frame(width: 7, height: 7)
-                        Text(status.title).font(.caption.weight(.semibold)).foregroundStyle(status.color)
+                        Text(status.title).font(.cCaption.weight(.semibold)).foregroundStyle(status.color)
                     }
                 }
                 Spacer()
             }
             Text(status.detail)
-                .font(.caption)
+                .font(.cCaption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -70,7 +71,7 @@ struct SteamMenu: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("CONNECTION").font(.caption2.weight(.bold)).tracking(1).foregroundStyle(.secondary)
+                Text("CONNECTION").font(.cCaption2.weight(.bold)).tracking(1).foregroundStyle(.secondary)
                 Picker("Connection", selection: Binding(get: { model.connectionMode }, set: { model.setConnectionMode($0) })) {
                     ForEach(ConnectionMode.allCases) { Text($0.title).tag($0) }
                 }
@@ -84,7 +85,7 @@ struct SteamMenu: View {
                     Button("Quit Steam") { close(); model.quitSteam() }
                 }
                 .buttonStyle(.link)
-                .font(.caption)
+                .font(.cCaption)
                 .disabled(model.runningGame != nil || model.switchingConnection)
             }
         }
@@ -99,7 +100,7 @@ struct SteamMenu: View {
         } label: {
             VStack(spacing: 5) {
                 Image(systemName: icon).font(.system(size: 16))
-                Text(title).font(.caption.weight(.medium))
+                Text(title).font(.cCaption.weight(.medium))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)

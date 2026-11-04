@@ -7,9 +7,9 @@ public enum GamePreset: String, Codable, Sendable, CaseIterable, Identifiable {
 
     public var title: String {
         switch self {
-        case .quality: "Quality"
+        case .quality: "Best looks"
         case .balanced: "Balanced"
-        case .battery: "Battery"
+        case .battery: "Battery saver"
         }
     }
 

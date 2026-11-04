@@ -77,9 +77,9 @@ struct MusicSetupPrompt: View {
 
     private func prompt(_ title: String, _ detail: String, _ button: String?, run: @escaping () -> Void) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: "music.note").font(.system(size: 40, weight: .light)).foregroundStyle(.white.opacity(0.4))
-            Text(title).font(.headline)
-            Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380)
+            Image(systemName: "music.note").font(.cellar(40, .light)).foregroundStyle(.white.opacity(0.4))
+            Text(title).font(.cHeadline)
+            Text(detail).font(.cCallout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380)
             if let button {
                 Button(button, action: run).buttonStyle(PillButtonStyle()).padding(.top, 4)
             }
@@ -102,8 +102,8 @@ struct OverlayMusicTab: View {
                     player
                 } else {
                     VStack(spacing: 12) {
-                        Image(systemName: "music.note").font(.system(size: 40, weight: .light)).foregroundStyle(.white.opacity(0.4))
-                        Text("Nothing's playing").font(.headline)
+                        Image(systemName: "music.note").font(.cellar(40, .light)).foregroundStyle(.white.opacity(0.4))
+                        Text("Nothing's playing").font(.cHeadline)
                         MusicButtons(size: 22).environment(model)
                     }
                 }
@@ -127,14 +127,14 @@ struct OverlayMusicTab: View {
     private var player: some View {
         HStack(spacing: 40) {
             SpotifyCover(url: model.spotify.artwork)
-                .frame(width: 300, height: 300)
+                .frame(width: 250, height: 250)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(model.spotify.name ?? "").font(.system(size: 30, weight: .heavy)).lineLimit(2)
-                    Text(model.spotify.artist ?? "").font(.title3.weight(.medium)).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
-                    Text(model.spotify.album ?? "").font(.callout).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
+                    Text(model.spotify.name ?? "").font(.cellar(30, .heavy)).lineLimit(2)
+                    Text(model.spotify.artist ?? "").font(.cTitle3.weight(.medium)).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                    Text(model.spotify.album ?? "").font(.cCallout).foregroundStyle(.white.opacity(0.55)).lineLimit(1)
                 }
                 SeekBar().environment(model)
                 MusicButtons(size: 24).environment(model)
@@ -142,7 +142,7 @@ struct OverlayMusicTab: View {
             }
             .frame(maxWidth: 480, alignment: .leading)
         }
-        .padding(40)
+        .padding(24)
     }
 }
 
@@ -168,7 +168,7 @@ struct SeekBar: View {
                     Spacer()
                     Text(clock(state.duration))
                 }
-                .font(.caption.monospacedDigit())
+                .font(.cCaption.monospacedDigit())
                 .foregroundStyle(.white.opacity(0.6))
             }
         }
@@ -181,7 +181,7 @@ struct MusicVolume: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "speaker.fill").font(.caption).foregroundStyle(.white.opacity(0.6))
+            Image(systemName: "speaker.fill").font(.cCaption).foregroundStyle(.white.opacity(0.6))
             Slider(value: Binding(get: { level ?? Double(model.spotify.volume ?? 50) }, set: { level = $0 }), in: 0...100) { editing in
                 if !editing, let target = level {
                     model.music(.volume(Int(target)))
@@ -190,7 +190,7 @@ struct MusicVolume: View {
             }
             .controlSize(.small)
             .labelsHidden()
-            Image(systemName: "speaker.wave.3.fill").font(.caption).foregroundStyle(.white.opacity(0.6))
+            Image(systemName: "speaker.wave.3.fill").font(.cCaption).foregroundStyle(.white.opacity(0.6))
         }
         .help("Spotify's volume, separate from the game's")
     }
@@ -206,8 +206,8 @@ struct MiniPlayer: View {
                 .frame(width: 40, height: 40)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             VStack(alignment: .leading, spacing: 1) {
-                Text(model.spotify.name ?? "Spotify").font(.callout.weight(.semibold)).lineLimit(1)
-                Text(model.spotify.artist ?? (model.spotify.isPlaying ? "" : "Paused")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(model.spotify.name ?? "Spotify").font(.cCallout.weight(.semibold)).lineLimit(1)
+                Text(model.spotify.artist ?? (model.spotify.isPlaying ? "" : "Paused")).font(.cCaption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             MusicButtons(size: 12)

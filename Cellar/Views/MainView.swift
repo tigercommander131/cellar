@@ -1,66 +1,40 @@
+import AVFoundation
 import CellarKit
 import SwiftUI
 
-/// The console-style shell: the focused game's art fills the window, a top bar holds the tabs.
+/// The console-style shell. Two places to be, Games and Friends, plus Settings, and a game's own
+/// screen laid over the top.
 struct MainView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        @Bindable var model = model
         ZStack(alignment: .top) {
-            Backdrop(game: model.tab == .home ? model.focusedGame : nil)
-            VStack(spacing: 0) {
-                TopBar()
-                Group {
-                    switch model.tab {
-                    case .home: HomeView()
-                    case .library: LibraryView()
-                    case .friends: FriendsView()
-                    }
+            Theme.ground.ignoresSafeArea()
+            Group {
+                switch model.tab {
+                case .games:
+                    if model.showAllGames { AllGamesView().padding(.top, 58) } else { GamesView() }
+                case .friends: FriendsView().padding(.top, 58)
+                case .settings: SettingsScreen().padding(.top, 58)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            TopBar()
+            if let game = model.settingsGame {
+                GameScreen(game: game)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             if let toast = model.toast {
                 Toast(text: toast) { model.toast = nil }
-                    .padding(.top, 70)
+                    .padding(.top, 62)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.smooth(duration: 0.35), value: model.tab)
+        .animation(.smooth(duration: 0.28), value: model.tab)
+        .animation(.smooth(duration: 0.28), value: model.showAllGames)
+        .animation(.smooth(duration: 0.26), value: model.settingsGame?.id)
         .animation(.smooth, value: model.toast)
-        .sheet(item: $model.settingsGame) { game in
-            GameSettingsSheet(game: game)
-                .environment(model)
-        }
         .task { model.startFriends() }
-    }
-}
-
-/// Full-bleed hero art behind everything, cross-fading when the focused game changes.
-struct Backdrop: View {
-    let game: Game?
-
-    var body: some View {
-        ZStack {
-            Color(red: 0.05, green: 0.04, blue: 0.05)
-            if let game {
-                Color.clear
-                    .overlay { ArtworkImage(url: game.artwork?.hero ?? game.artwork?.header) }
-                    .clipped()
-                    .id(game.id)
-                    .transition(.opacity)
-            } else {
-                LinearGradient(colors: [Color(red: 0.22, green: 0.04, blue: 0.09), Color(red: 0.05, green: 0.03, blue: 0.05)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-            }
-            // Darken toward the bottom and left, where text and the shelf sit.
-            LinearGradient(stops: [.init(color: .black.opacity(0.55), location: 0), .init(color: .clear, location: 0.18),
-                                   .init(color: .clear, location: 0.38), .init(color: .black.opacity(0.92), location: 0.8)],
-                           startPoint: .top, endPoint: .bottom)
-            LinearGradient(colors: [.black.opacity(0.65), .clear], startPoint: .leading, endPoint: .center)
-        }
-        .animation(.smooth(duration: 0.5), value: game?.id)
-        .ignoresSafeArea()
     }
 }
 
@@ -68,26 +42,28 @@ struct TopBar: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        @Bindable var model = model
-        HStack(spacing: 16) {
-            AppMark(size: 26)
-            HStack(spacing: 4) {
-                ForEach(Tab.allCases) { tab in
-                    Button { model.tab = tab } label: {
-                        Text(tab.rawValue)
-                            .font(.system(size: 14, weight: .semibold))
-                            .padding(.horizontal, 14).padding(.vertical, 6)
-                            .background(Capsule().fill(model.tab == tab ? .white.opacity(0.18) : .clear))
-                            .foregroundStyle(model.tab == tab ? .white : .white.opacity(0.65))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(KeyEquivalent(Character(String(Tab.allCases.firstIndex(of: tab)! + 1))), modifiers: .command)
-                }
+        HStack(spacing: 22) {
+            HStack(spacing: 9) {
+                AppMark(size: 26)
+                Wordmark()
             }
-            .padding(3)
-            .background(Capsule().fill(.black.opacity(0.25)))
-            .fixedSize()
+            ForEach(Tab.navigation) { tab in
+                Button {
+                    model.tab = tab
+                    model.showAllGames = false
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.cellar(14, model.tab == tab ? .bold : .medium))
+                        .foregroundStyle(model.tab == tab ? .white : .white.opacity(0.72))
+                        .padding(.vertical, 8)
+                        .overlay(alignment: .bottom) {
+                            if model.tab == tab { Capsule().fill(.white).frame(height: 2) }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(KeyEquivalent(Character(String((Tab.navigation.firstIndex(of: tab) ?? 0) + 1))), modifiers: .command)
+            }
             // The title bar is hidden, so the empty part of the top bar moves the window.
             Color.clear
                 .contentShape(Rectangle())
@@ -98,50 +74,55 @@ struct TopBar: View {
                     .help("Force-quit Steam and every game (⇧⌘K)")
             }
             SteamButton()
-            SettingsLink { Image(systemName: "gearshape.fill") }
-                .buttonStyle(GlassButtonStyle())
-                .help("Settings")
-                .accessibilityLabel("Settings")
+            Button {
+                model.tab = .settings
+                model.showAllGames = false
+            } label: {
+                Text("Settings")
+            }
+            .buttonStyle(GlassButtonStyle())
         }
         .padding(.leading, 84)   // clear of the window buttons
-        .padding(.trailing, 20)
-        .padding(.top, 10)
+        .padding(.trailing, 22)
+        .padding(.top, 8)
         .frame(height: 52)
     }
 }
 
-// MARK: Home
+// MARK: Games
 
-struct HomeView: View {
+struct GamesView: View {
     @Environment(AppModel.self) private var model
-    @FocusState private var shelfFocused: Bool
+    @FocusState private var focused: Bool
 
     var body: some View {
         if let game = model.focusedGame {
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer(minLength: 20)
-                HStack(alignment: .bottom) {
-                    HeroInfo(game: game)
-                    Spacer()
-                    if !model.friendsInGame.isEmpty || !model.friendsOnline.isEmpty {
-                        FriendsPeek().padding(.bottom, 6)
+            ZStack(alignment: .bottomLeading) {
+                GameBackdrop(game: game)
+                VStack(alignment: .leading, spacing: 0) {
+                    Spacer(minLength: 60)
+                    HStack(alignment: .bottom) {
+                        GameHeading(game: game)
+                        Spacer(minLength: 24)
+                        if !model.friendsInGame.isEmpty || !model.friendsOnline.isEmpty {
+                            FriendsPeek().padding(.bottom, 4)
+                        }
+                    }
+                    .padding(.horizontal, 44)
+                    Shelf(games: model.installedGames)
+                        .padding(.top, 20)
+                    if !model.downloadingGames.isEmpty {
+                        DownloadStrip().padding(.bottom, 12)
                     }
                 }
-                .padding(.horizontal, 44)
-                Shelf(title: "Your games", games: model.installedGames)
-                    .padding(.top, 30)
-                if !model.downloadingGames.isEmpty {
-                    DownloadStrip().padding(.top, 6)
-                }
-                Spacer(minLength: 24).frame(maxHeight: 28)
             }
             .focusable()
-            .focused($shelfFocused)
+            .focused($focused)
             .focusEffectDisabled()
             .onKeyPress(.leftArrow) { move(-1) }
             .onKeyPress(.rightArrow) { move(1) }
             .onKeyPress(.return) { model.play(game); return .handled }
-            .onAppear { shelfFocused = true }
+            .onAppear { focused = true }
         } else {
             EmptyHome()
         }
@@ -150,59 +131,125 @@ struct HomeView: View {
     private func move(_ delta: Int) -> KeyPress.Result {
         let games = model.installedGames
         guard let current = games.firstIndex(where: { $0.id == model.focusedGame?.id }) else { return .ignored }
-        let next = min(max(current + delta, 0), games.count - 1)
-        model.focusedGameID = games[next].id
+        model.focusedGameID = games[min(max(current + delta, 0), games.count - 1)].id
         return .handled
     }
 }
 
-struct HeroInfo: View {
+/// The selected game's art filling the window, with its trailer fading in over the art when it can.
+struct GameBackdrop: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.controlActiveState) private var activeState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let game: Game
+    @State private var player: AVPlayer?
+    @State private var playing = false
+
+    /// Video never competes with a running game, and stops when Cellar isn't in front.
+    private var shouldPlay: Bool {
+        model.trailersEnabled && !reduceMotion && model.runningGame == nil && model.launching == nil
+            && model.settingsGame == nil && activeState != .inactive && !model.steamOffline
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.ground
+            Color.clear
+                .overlay { ArtworkImage(url: game.artwork?.hero ?? game.artwork?.header) }
+                .clipped()
+                .id(game.id)
+                .transition(.opacity)
+            if let player {
+                ClipVideoView(player: player, fills: true)
+                    .opacity(playing ? 1 : 0)
+                    .animation(.easeIn(duration: 0.7), value: playing)
+                    .allowsHitTesting(false)
+            }
+            LinearGradient(stops: [.init(color: .black.opacity(0.62), location: 0), .init(color: .clear, location: 0.2),
+                                   .init(color: .black.opacity(0.22), location: 0.42), .init(color: Theme.ground.opacity(0.98), location: 0.84)],
+                           startPoint: .top, endPoint: .bottom)
+        }
+        .animation(.smooth(duration: 0.45), value: game.id)
+        .ignoresSafeArea()
+        .task(id: trailerKey) { await runTrailer() }
+    }
+
+    private var trailerKey: String { "\(game.id)-\(shouldPlay)" }
+
+    private func runTrailer() async {
+        player?.pause()
+        player = nil
+        playing = false
+        guard shouldPlay else { return }
+        // Moving along the shelf quickly shouldn't start a download for every game passed.
+        try? await Task.sleep(for: .seconds(1.2))
+        guard !Task.isCancelled, let url = await model.trailers.trailer(appID: game.id) else { return }
+        guard !Task.isCancelled else { return }
+        let item = AVPlayerItem(url: url)
+        item.preferredPeakBitRate = 5_000_000
+        let video = AVPlayer(playerItem: item)
+        video.isMuted = true
+        video.actionAtItemEnd = .none
+        player = video
+        video.play()
+        while !Task.isCancelled {
+            if video.timeControlStatus == .playing, video.currentTime().seconds > 0.1 { playing = true }
+            if let duration = video.currentItem?.duration.seconds, duration.isFinite, video.currentTime().seconds >= duration - 0.3 {
+                await video.seek(to: .zero)
+                video.play()
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        video.pause()
+    }
+}
+
+struct GameHeading: View {
     @Environment(AppModel.self) private var model
     let game: Game
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            AsyncImage(url: game.artwork?.logo) { phase in
-                if case .success(let image) = phase {
-                    image.resizable().scaledToFit().frame(maxWidth: 380, maxHeight: 130, alignment: .leading)
-                        .shadow(color: .black.opacity(0.6), radius: 10)
-                } else {
-                    Text(game.name)
-                        .font(.system(size: 46, weight: .heavy))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.6)
-                        .shadow(color: .black.opacity(0.6), radius: 10)
-                }
-            }
-            .id(game.id)
-            HStack(spacing: 10) {
+            ArtworkLogo(url: game.artwork?.logo, name: game.name)
+                .id(game.id)
+            HStack(spacing: 12) {
                 if let assessment = model.verdicts[game.id] {
                     VerdictButton(game: game, assessment: assessment)
                 }
-                Text(meta)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.75))
+                if let last = game.lastPlayed {
+                    Text("Played " + last.formatted(.relative(presentation: .named)))
+                        .font(.cCallout)
+                        .foregroundStyle(.white.opacity(0.84))
+                }
             }
             HStack(spacing: 12) {
                 PlayControl(game: game)
-                CircleIconButton(systemImage: "slider.horizontal.3", help: "Game settings") { model.settingsGame = game }
-                CircleIconButton(systemImage: "dock.rectangle", help: "Add to Dock") { model.addToDock(game) }
-                CircleIconButton(systemImage: "folder", help: "Show game files in Finder") { model.showInFinder(game) }
+                Button("Game settings") { model.settingsGame = game }
+                    .buttonStyle(GlassButtonStyle(large: true))
             }
-            .padding(.top, 4)
         }
         .frame(maxWidth: 560, alignment: .leading)
-        .transition(.opacity)
-        .animation(.smooth, value: game.id)
     }
+}
 
-    private var meta: String {
-        var parts = [game.profile.backend.shortName, game.app.sizeOnDisk.formattedBytes]
-        if game.profile.metalHUD ?? model.showFPS { parts.append("FPS counter on") }
-        if let last = game.lastPlayed {
-            parts.append("Played " + last.formatted(.relative(presentation: .named)))
+struct ArtworkLogo: View {
+    let url: URL?
+    let name: String
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if case .success(let image) = phase {
+                image.resizable().scaledToFit()
+                    .frame(maxWidth: 420, maxHeight: 130, alignment: .leading)
+                    .shadow(color: .black.opacity(0.55), radius: 10)
+            } else {
+                Text(name)
+                    .font(.cellar(44, .heavy))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.6)
+                    .shadow(color: .black.opacity(0.55), radius: 10)
+            }
         }
-        return parts.joined(separator: "  ·  ")
     }
 }
 
@@ -212,50 +259,53 @@ struct PlayControl: View {
 
     var body: some View {
         if game.isRunning {
-            Button { model.stopAll() } label: { Label("Stop", systemImage: "stop.fill").frame(minWidth: 110) }
-                .buttonStyle(PillButtonStyle(large: true, tint: .white.opacity(0.22)))
+            Button { model.stopAll() } label: { Label("Stop", systemImage: "stop.fill").frame(minWidth: 90) }
+                .buttonStyle(GlassButtonStyle(large: true))
         } else if model.launching == game.id {
-            HStack(spacing: 10) { ProgressView().controlSize(.small).tint(.white); Text("Starting…") }
-                .font(.title3.weight(.semibold))
-                .frame(minWidth: 110)
-                .padding(.horizontal, 28).padding(.vertical, 11)
-                .background(Capsule().fill(.white.opacity(0.14)))
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small).tint(.white)
+                Text("Starting…").font(.cellar(16, .bold))
+            }
+            .padding(.horizontal, 28)
+            .frame(height: 52)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.14)))
         } else {
-            Button { model.play(game) } label: { Label("Play", systemImage: "play.fill").frame(minWidth: 110) }
+            Button("Play") { model.play(game) }
                 .buttonStyle(PillButtonStyle(large: true))
         }
     }
 }
 
-/// The row of covers at the bottom of Home; the focused one is raised and outlined.
+/// The row of covers along the bottom. The selected one is larger and outlined.
 struct Shelf: View {
     @Environment(AppModel.self) private var model
-    let title: String
     let games: [Game]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title.uppercased())
-                .font(.caption.weight(.bold))
-                .tracking(1.2)
-                .foregroundStyle(.white.opacity(0.6))
-                .padding(.horizontal, 44)
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        ForEach(games) { game in
-                            ShelfCard(game: game, focused: game.id == model.focusedGame?.id, verdict: model.verdicts[game.id]?.verdict)
-                                .id(game.id)
-                                .onTapGesture(count: 2) { model.play(game) }
-                                .onTapGesture { model.focusedGameID = game.id }
-                        }
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .bottom, spacing: 14) {
+                    ForEach(games) { game in
+                        ShelfCard(game: game, focused: game.id == model.focusedGame?.id, verdict: model.verdicts[game.id]?.verdict)
+                            .id(game.id)
+                            .onTapGesture(count: 2) { model.play(game) }
+                            .onTapGesture { model.focusedGameID = game.id }
                     }
-                    .padding(.horizontal, 44)
-                    .padding(.vertical, 12)
+                    Button { model.showAllGames = true } label: {
+                        Text("All games")
+                            .font(.cellar(13, .bold))
+                            .frame(width: 104, height: 156)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.08)))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.24)))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .onChange(of: model.focusedGame?.id) { _, id in
-                    withAnimation(.smooth) { proxy.scrollTo(id, anchor: .center) }
-                }
+                .padding(.horizontal, 44)
+                .padding(.vertical, 22)
+            }
+            .onChange(of: model.focusedGame?.id) { _, id in
+                withAnimation(.smooth) { proxy.scrollTo(id, anchor: .center) }
             }
         }
     }
@@ -267,28 +317,28 @@ struct ShelfCard: View {
     var verdict: CompatibilityVerdict?
     @State private var hovering = false
 
+    private var size: CGSize { focused ? CGSize(width: 126, height: 186) : CGSize(width: 104, height: 156) }
+
     var body: some View {
         ArtworkImage(url: game.artwork?.capsule, fallbackTitle: game.name)
-            .frame(width: 128, height: 192)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: size.width, height: size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(.white.opacity(focused ? 0.95 : (hovering ? 0.4 : 0.1)), lineWidth: focused ? 3 : 1)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(.white.opacity(focused ? 1 : (hovering ? 0.5 : 0.16)), lineWidth: focused ? 3 : 1)
             }
             .overlay(alignment: .topTrailing) {
                 if game.isRunning {
-                    Circle().fill(.green).frame(width: 10, height: 10).padding(8)
+                    Circle().fill(Theme.positive).frame(width: 10, height: 10).padding(8)
                 }
             }
-            .overlay(alignment: .bottomLeading) {
-                if let verdict, verdict != .unknown { VerdictDot(verdict: verdict).padding(7) }
-            }
-            .shadow(color: .black.opacity(focused ? 0.6 : 0.35), radius: focused ? 18 : 8, y: focused ? 10 : 4)
-            .scaleEffect(focused ? 1.08 : (hovering ? 1.03 : 1))
+            .shadow(color: .black.opacity(focused ? 0.55 : 0.3), radius: focused ? 16 : 6, y: focused ? 8 : 3)
+            .scaleEffect(hovering && !focused ? 1.03 : 1)
             .animation(.snappy(duration: 0.2), value: focused)
             .animation(.snappy(duration: 0.15), value: hovering)
             .onHover { hovering = $0 }
             .help(game.name)
+            .contentShape(Rectangle())
     }
 }
 
@@ -297,45 +347,49 @@ struct DownloadStrip: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
+            Image(systemName: "arrow.down.circle.fill")
             ForEach(model.downloadingGames.prefix(3)) { game in
                 HStack(spacing: 6) {
                     Text(game.name).lineLimit(1)
                     if let p = game.app.downloadProgress {
-                        ProgressView(value: p).frame(width: 70).tint(.accentColor)
-                        Text("\(Int(p * 100))%").monospacedDigit().foregroundStyle(.secondary)
+                        ProgressView(value: p).frame(width: 70).tint(.white)
+                        Text("\(Int(p * 100))%").monospacedDigit().foregroundStyle(Theme.secondaryText)
                     } else {
-                        Text(game.app.isUpdating ? "updating" : "queued").foregroundStyle(.secondary)
+                        Text(game.app.isUpdating ? "updating" : "queued").foregroundStyle(Theme.secondaryText)
                     }
                 }
             }
         }
-        .font(.callout)
+        .font(.cCallout)
         .padding(.horizontal, 44)
     }
 }
 
-/// Friends who are in a game or online, shown small on the right of Home.
+/// Who's on, small and out of the way. The whole list is one click away.
 struct FriendsPeek: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            Text("FRIENDS")
-                .font(.caption.weight(.bold)).tracking(1.2)
-                .foregroundStyle(.white.opacity(0.6))
-            ForEach((model.friendsInGame + model.friendsOnline).prefix(4)) { friend in
-                HStack(spacing: 8) {
-                    VStack(alignment: .trailing, spacing: 1) {
-                        Text(friend.name).font(.callout.weight(.semibold)).lineLimit(1)
-                        Text(friend.game ?? "Online")
-                            .font(.caption)
-                            .foregroundStyle(friend.state == .inGame ? .green : .white.opacity(0.6))
-                            .lineLimit(1)
+        let friends = Array((model.friendsInGame + model.friendsOnline).prefix(4))
+        VStack(alignment: .trailing, spacing: 9) {
+            Text("\(model.friendsInGame.count + model.friendsOnline.count) friends online")
+                .font(.cellar(11.5, .bold))
+                .foregroundStyle(.white.opacity(0.84))
+            ForEach(friends) { friend in
+                Button { model.tab = .friends } label: {
+                    HStack(spacing: 9) {
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(friend.name).font(.cellar(12.5, .semibold)).lineLimit(1)
+                            Text(friend.game ?? "Online")
+                                .font(.cCaption)
+                                .foregroundStyle(friend.state == .inGame ? Theme.positive : .white.opacity(0.72))
+                                .lineLimit(1)
+                        }
+                        Avatar(friend: friend, size: 30)
                     }
-                    Avatar(friend: friend, size: 30)
+                    .contentShape(Rectangle())
                 }
-                .onTapGesture { model.tab = .friends }
+                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: 240, alignment: .trailing)
@@ -348,16 +402,15 @@ struct EmptyHome: View {
     var body: some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "gamecontroller.fill")
-                .font(.system(size: 54))
-                .foregroundStyle(.white.opacity(0.8))
-            Text("Let's get a game").font(.system(size: 32, weight: .heavy))
+            AppMark(size: 72)
+            Text("Let's get a game").font(.cellar(30, .heavy))
             Text(model.steamUser == nil
                  ? "Open Steam and sign in. Games you install there show up here."
                  : "Install something in Steam. It shows up here when it's ready.")
-                .foregroundStyle(.white.opacity(0.7))
+                .font(.cBody)
+                .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                .frame(maxWidth: 380)
             Button("Open Steam") { model.openSteam() }
                 .buttonStyle(PillButtonStyle(large: true))
                 .padding(.top, 4)
@@ -368,59 +421,53 @@ struct EmptyHome: View {
     }
 }
 
-// MARK: Library
+// MARK: All games
 
-struct LibraryView: View {
+struct AllGamesView: View {
     @Environment(AppModel.self) private var model
-    private let columns = [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 22)]
+    private let columns = [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 20)]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Library").font(.system(size: 30, weight: .heavy))
-                Text(model.installedGames.count == 1 ? "1 game" : "\(model.installedGames.count) games")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 44).padding(.top, 18)
-
-            WillItRunSearch()
-                .padding(.horizontal, 44).padding(.top, 14)
-
-            if model.installedGames.isEmpty && model.downloadingGames.isEmpty {
-                EmptyHome().frame(height: 400)
-            }
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
-                ForEach(model.installedGames) { game in
-                    LibraryCard(game: game)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text("All games").font(.cellar(32, .heavy))
+                    Text(model.installedGames.count == 1 ? "1 game" : "\(model.installedGames.count) games")
+                        .font(.cCallout).foregroundStyle(Theme.secondaryText)
+                    Spacer()
+                    Button("Back") { model.showAllGames = false }
+                        .buttonStyle(GlassButtonStyle())
                 }
-            }
-            .padding(.horizontal, 44).padding(.vertical, 20)
-
-            if !model.downloadingGames.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("DOWNLOADING").font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(.secondary)
-                    ForEach(model.downloadingGames) { game in
-                        HStack(spacing: 14) {
-                            ArtworkImage(url: game.artwork?.header).frame(width: 120, height: 56)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(game.name).font(.headline)
-                                if let p = game.app.downloadProgress {
-                                    ProgressView(value: p).tint(.accentColor)
-                                    Text("\(game.app.bytesDownloaded.formattedBytes) of \(game.app.bytesToDownload.formattedBytes)")
-                                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                                } else {
-                                    Text(game.app.isUpdating ? "Updating…" : "Waiting in Steam's queue").font(.caption).foregroundStyle(.secondary)
+                WillItRunSearch()
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 24) {
+                    ForEach(model.installedGames) { LibraryCard(game: $0) }
+                }
+                if !model.downloadingGames.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Downloading").font(.cHeadline)
+                        ForEach(model.downloadingGames) { game in
+                            HStack(spacing: 14) {
+                                ArtworkImage(url: game.artwork?.header).frame(width: 120, height: 56)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(game.name).font(.cHeadline)
+                                    if let p = game.app.downloadProgress {
+                                        ProgressView(value: p).tint(.white)
+                                        Text("\(game.app.bytesDownloaded.formattedBytes) of \(game.app.bytesToDownload.formattedBytes)")
+                                            .font(.cCaption).foregroundStyle(Theme.secondaryText).monospacedDigit()
+                                    } else {
+                                        Text(game.app.isUpdating ? "Updating…" : "Waiting in Steam's queue").font(.cCaption).foregroundStyle(Theme.secondaryText)
+                                    }
                                 }
                             }
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.surface))
                         }
-                        .padding(12)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.05)))
                     }
                 }
-                .padding(.horizontal, 44).padding(.bottom, 30)
             }
+            .padding(.horizontal, 44)
+            .padding(.vertical, 18)
         }
     }
 }
@@ -431,36 +478,31 @@ struct LibraryCard: View {
     @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 9) {
             ArtworkImage(url: game.artwork?.capsule, fallbackTitle: game.name)
                 .aspectRatio(2 / 3, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(alignment: .bottom) {
                     if hovering && !game.isRunning {
-                        Button { model.play(game) } label: { Label("Play", systemImage: "play.fill") }
+                        Button("Play") { model.play(game) }
                             .buttonStyle(PillButtonStyle())
                             .padding(12)
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
-                .overlay(alignment: .bottomLeading) {
-                    if !hovering, let verdict = model.verdicts[game.id]?.verdict, verdict != .unknown {
-                        VerdictPill(verdict: verdict).padding(8)
-                    }
-                }
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(hovering ? 0.35 : 0.08))
+                    RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(hovering ? 0.4 : 0.1))
                 }
-                .shadow(color: .black.opacity(hovering ? 0.45 : 0.25), radius: hovering ? 14 : 6, y: hovering ? 8 : 3)
-                .scaleEffect(hovering ? 1.03 : 1)
-            Text(game.name).font(.headline).lineLimit(1)
-            Text(game.isRunning ? "Running" : game.profile.backend.shortName)
-                .font(.caption).foregroundStyle(game.isRunning ? .green : .secondary)
+                .scaleEffect(hovering ? 1.02 : 1)
+            Text(game.name).font(.cHeadline).lineLimit(1)
+            Text(game.isRunning ? "Running" : (model.verdicts[game.id]?.verdict.title ?? " "))
+                .font(.cCaption)
+                .foregroundStyle(game.isRunning ? Theme.positive : Theme.secondaryText)
         }
         .contentShape(Rectangle())
         .onTapGesture {
             model.focusedGameID = game.id
-            model.tab = .home
+            model.showAllGames = false
         }
         .onHover { h in withAnimation(.snappy(duration: 0.18)) { hovering = h } }
         .contextMenu {
@@ -480,35 +522,29 @@ struct FriendsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Friends").font(.system(size: 30, weight: .heavy))
-                Text("From your Steam account. Status comes from public profiles and refreshes every minute.")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 44).padding(.top, 18)
-
             VStack(alignment: .leading, spacing: 22) {
+                Text("Friends").font(.cellar(32, .heavy))
                 if !model.friendsLoaded {
-                    HStack { ProgressView().controlSize(.small); Text("Checking who's on…").foregroundStyle(.secondary) }
+                    HStack { ProgressView().controlSize(.small); Text("Checking who's on…").font(.cBody).foregroundStyle(Theme.secondaryText) }
                 } else if model.friends.isEmpty {
                     Text(model.steamUser == nil ? "Sign in to Steam to see your friends." : "No friends found in this Steam account yet.")
-                        .foregroundStyle(.secondary)
+                        .font(.cBody).foregroundStyle(Theme.secondaryText)
                 }
                 section("Playing now", model.friendsInGame)
                 section("Online", model.friendsOnline)
                 section("Offline or private", model.friends.filter { $0.state == .offline || $0.state == .unknown })
             }
-            .padding(.horizontal, 44).padding(.vertical, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 44).padding(.vertical, 18)
         }
     }
 
     @ViewBuilder private func section(_ title: String, _ friends: [SteamFriend]) -> some View {
         if !friends.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("\(title.uppercased())  \(friends.count)")
-                    .font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(.secondary)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(title), \(friends.count)")
+                    .font(.cellar(12, .bold)).foregroundStyle(Theme.secondaryText)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 12)], spacing: 12) {
                     ForEach(friends) { FriendRow(friend: $0) }
                 }
             }
@@ -522,11 +558,11 @@ struct FriendRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Avatar(friend: friend, size: 40)
+            Avatar(friend: friend, size: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text(friend.name).font(.headline).lineLimit(1)
-                Text(status).font(.caption).lineLimit(1)
-                    .foregroundStyle(friend.state == .inGame ? .green : .secondary)
+                Text(friend.name).font(.cHeadline).lineLimit(1)
+                Text(status).font(.cCaption).lineLimit(1)
+                    .foregroundStyle(friend.state == .inGame ? Theme.positive : Theme.secondaryText)
             }
             Spacer()
             if friend.joinLink != nil {
@@ -539,8 +575,8 @@ struct FriendRow: View {
                 .help("Chat in Steam")
                 .accessibilityLabel("Chat with \(friend.name) in Steam")
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.06)))
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.surface))
     }
 
     private var status: String {
@@ -560,16 +596,15 @@ struct Avatar: View {
 
     var body: some View {
         AsyncImage(url: friend.avatar) { phase in
-            if case .success(let image) = phase { image.resizable().scaledToFill() } else { Color.white.opacity(0.12) }
+            if case .success(let image) = phase { image.resizable().scaledToFill() } else { Color.white.opacity(0.14) }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .clipShape(Circle())
         .overlay(alignment: .bottomTrailing) {
             Circle()
-                .fill(friend.state == .inGame ? Color.green : (friend.state == .online ? Color.blue : Color.gray))
-                .frame(width: size * 0.3, height: size * 0.3)
-                .overlay(Circle().stroke(.black.opacity(0.6), lineWidth: 2))
-                .offset(x: 3, y: 3)
+                .fill(friend.state == .inGame ? Theme.positive : (friend.state == .online ? Color.white : Color.gray))
+                .frame(width: size * 0.28, height: size * 0.28)
+                .overlay(Circle().stroke(.black.opacity(0.7), lineWidth: 2))
                 .opacity(friend.state == .offline || friend.state == .unknown ? 0 : 1)
         }
     }
@@ -581,12 +616,14 @@ struct Toast: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            Text(text).font(.callout)
-            Button(action: dismiss) { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(.secondary)
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.positive)
+            Text(text).font(.cCallout)
+            Button(action: dismiss) { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(Theme.secondaryText)
+                .accessibilityLabel("Dismiss")
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.horizontal, 16).padding(.vertical, 11)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(white: 0.11)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.line))
         .task {
             try? await Task.sleep(for: .seconds(6))
             dismiss()

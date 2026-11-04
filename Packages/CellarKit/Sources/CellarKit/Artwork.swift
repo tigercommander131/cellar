@@ -113,3 +113,45 @@ public actor ArtworkService {
         try? JSONEncoder().encode(cache).write(to: cacheFile, options: .atomic)
     }
 }
+
+/// Finds a game's trailer through Steam's store and remembers the answer. Steam serves trailers as
+/// HLS streams, which the Mac's video player handles natively.
+public actor TrailerService {
+    static let freshness: TimeInterval = 7 * 86_400
+    let file: URL
+    var cache: [String: Entry] = [:]
+    var loaded = false
+
+    struct Entry: Codable {
+        var url: URL?
+        var checked: Date
+    }
+
+    public init(paths: CellarPaths) {
+        file = paths.cache.appending(path: "trailers.json")
+    }
+
+    public func trailer(appID: String) async -> URL? {
+        if !loaded {
+            loaded = true
+            let decoder = JSONDecoder()
+            if let data = try? Data(contentsOf: file), let saved = try? decoder.decode([String: Entry].self, from: data) { cache = saved }
+        }
+        if let entry = cache[appID], Date().timeIntervalSince(entry.checked) < Self.freshness { return entry.url }
+        guard let url = URL(string: "https://store.steampowered.com/api/appdetails?appids=\(appID)&filters=movies"),
+              let (data, reply) = try? await URLSession.shared.data(from: url), (reply as? HTTPURLResponse)?.statusCode == 200,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return cache[appID]?.url }
+        let found = Self.bestTrailer(fromStoreEntry: root[appID] as? [String: Any])
+        cache[appID] = Entry(url: found, checked: Date())
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? JSONEncoder().encode(cache).write(to: file, options: .atomic)
+        return found
+    }
+
+    /// The first one Steam highlights, else the first it lists.
+    static func bestTrailer(fromStoreEntry entry: [String: Any]?) -> URL? {
+        guard let movies = (entry?["data"] as? [String: Any])?["movies"] as? [[String: Any]] else { return nil }
+        let chosen = movies.first { ($0["highlight"] as? Bool) == true } ?? movies.first
+        return (chosen?["hls_h264"] as? String).flatMap(URL.init(string:))
+    }
+}

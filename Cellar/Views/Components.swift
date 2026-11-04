@@ -1,41 +1,6 @@
 import CellarKit
 import SwiftUI
 
-/// The accent pill used for Set Up and Play.
-struct PillButtonStyle: ButtonStyle {
-    var large = false
-    var tint: Color = .accentColor
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
-            .padding(.horizontal, large ? 28 : 20)
-            .padding(.vertical, large ? 11 : 8)
-            .background(Capsule().fill(tint.opacity(isEnabled ? 1 : 0.4)))
-            .shadow(color: tint.opacity(large ? 0.45 : 0), radius: 14, y: 4)
-            .foregroundStyle(.white)
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
-    }
-}
-
-/// Small translucent buttons for the top bar and rows.
-struct GlassButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .semibold))
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(Capsule().fill(.white.opacity(configuration.isPressed ? 0.25 : 0.13)))
-            .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
-            .foregroundStyle(.white)
-            .opacity(isEnabled ? 1 : 0.4)
-            .contentShape(Capsule())
-    }
-}
-
 /// Round secondary buttons next to Play.
 struct CircleIconButton: View {
     let systemImage: String
@@ -45,7 +10,7 @@ struct CircleIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .medium))
+                .font(.cellar(15, .medium))
                 .frame(width: 38, height: 38)
                 .background(Circle().fill(.white.opacity(0.12)))
                 .overlay(Circle().strokeBorder(.white.opacity(0.18)))
@@ -53,23 +18,6 @@ struct CircleIconButton: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(help)
-    }
-}
-
-/// The app's mark: a wine glass on a deep red tile.
-struct AppMark: View {
-    var size: CGFloat
-    var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-            .fill(LinearGradient(colors: [Color(red: 0.62, green: 0.12, blue: 0.20), Color(red: 0.30, green: 0.04, blue: 0.10)],
-                                 startPoint: .top, endPoint: .bottom))
-            .frame(width: size, height: size)
-            .overlay {
-                Image(systemName: "wineglass.fill")
-                    .font(.system(size: size * 0.48, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
     }
 }
 
@@ -87,9 +35,9 @@ struct ArtworkImage: View {
                 ZStack {
                     LinearGradient(colors: [Color(white: 0.18), Color(white: 0.11)], startPoint: .top, endPoint: .bottom)
                     Text(fallbackTitle)
-                        .font(.headline)
+                        .font(.cHeadline)
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.72))
                         .padding()
                 }
             }

@@ -48,17 +48,17 @@ struct ClipTrimView: View {
                 // Only lengths shorter than the clip do anything.
                 let lengths = [10, 15, 30].filter { Double($0) < duration }
                 if !lengths.isEmpty {
-                    Text("Keep the last").font(.callout).foregroundStyle(.white.opacity(0.75))
+                    Text("Keep the last").font(.cCallout).foregroundStyle(.white.opacity(0.75))
                     ForEach(lengths, id: \.self) { seconds in
                         Button("\(seconds)s") { keepLast(seconds) }
                             .buttonStyle(GlassButtonStyle())
                     }
                 }
                 Spacer()
-                Text("Keeping \(time(max(end - start, 0))) of \(time(duration))").font(.callout).monospacedDigit().foregroundStyle(.white.opacity(0.75))
+                Text("Keeping \(time(max(end - start, 0))) of \(time(duration))").font(.cCallout).monospacedDigit().foregroundStyle(.white.opacity(0.75))
             }
             HStack(spacing: 12) {
-                if let failure { Text(failure).font(.callout).foregroundStyle(.orange) }
+                if let failure { Text(failure).font(.cCallout).foregroundStyle(.orange) }
                 Spacer()
                 Button { togglePlaying() } label: { Label(playing ? "Pause" : "Play", systemImage: playing ? "pause.fill" : "play.fill") }
                     .buttonStyle(GlassButtonStyle())
@@ -153,11 +153,13 @@ struct ClipTrimView: View {
 /// (`_AVKit_SwiftUI`, seen on macOS 26 in 2.1.0), so this draws with a plain player layer instead.
 struct ClipVideoView: NSViewRepresentable {
     let player: AVPlayer
+    /// Fills the space, cropping if it has to, rather than fitting inside it.
+    var fills = false
 
     func makeNSView(context: Context) -> PlayerLayerView {
         let view = PlayerLayerView()
         view.playerLayer.player = player
-        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.videoGravity = fills ? .resizeAspectFill : .resizeAspect
         return view
     }
 
@@ -208,7 +210,7 @@ struct TrimBar: View {
                 .background(Color.white.opacity(0.08))
                 Color.black.opacity(0.62).frame(width: max(startX, 0))
                 Color.black.opacity(0.62).frame(width: max(width - endX, 0)).offset(x: endX)
-                RoundedRectangle(cornerRadius: 4).strokeBorder(Color.accentColor, lineWidth: 3)
+                RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.wine, lineWidth: 3)
                     .frame(width: max(endX - startX, 0)).offset(x: startX)
                     .allowsHitTesting(false)
                 grip.offset(x: startX - handle / 2)
@@ -231,7 +233,7 @@ struct TrimBar: View {
 
     private var grip: some View {
         RoundedRectangle(cornerRadius: 4)
-            .fill(Color.accentColor)
+            .fill(Theme.wine)
             .frame(width: handle)
             .overlay(Capsule().fill(.white).frame(width: 2, height: 22))
             .contentShape(Rectangle())

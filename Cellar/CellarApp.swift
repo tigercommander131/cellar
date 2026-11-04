@@ -23,7 +23,7 @@ struct CellarApp: App {
         Window("Cellar", id: "main") {
             RootView()
                 .environment(model)
-                .frame(minWidth: 980, minHeight: 640)
+                .frame(minWidth: 1000, minHeight: 660)
                 .preferredColorScheme(.dark)
                 .task { model.start() }
                 .onOpenURL { model.handle($0) }
@@ -34,6 +34,14 @@ struct CellarApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.checkForUpdates(nil) }
+            }
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    model.tab = .settings
+                    model.settingsGame = nil
+                    NSApp.activate()
+                }
+                .keyboardShortcut(",", modifiers: .command)
             }
             CommandMenu("Games") {
                 Button("Open Steam") { model.openSteam() }
@@ -50,17 +58,11 @@ struct CellarApp: App {
             }
         }
 
-        Settings {
-            SettingsView()
-                .environment(model)
-                .preferredColorScheme(.dark)
-        }
-
         MenuBarExtra(isInserted: Binding(get: { model.menuBarIcon }, set: { model.setMenuBarIcon($0) })) {
             MenuBarPanel()
                 .environment(model)
         } label: {
-            Image(systemName: "wineglass.fill")
+            Image(nsImage: .cellarMenuBar)
                 .accessibilityLabel("Cellar")
         }
         .menuBarExtraStyle(.window)

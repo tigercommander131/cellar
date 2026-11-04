@@ -52,7 +52,7 @@ struct VerdictPill: View {
             Image(systemName: verdict.icon)
             Text(verdict.title)
         }
-        .font(.system(size: 11, weight: .bold))
+        .font(.cellar(11, .bold))
         .padding(.horizontal, 8).padding(.vertical, 4)
         .background(Capsule().fill(.black.opacity(0.55)))
         .overlay(Capsule().strokeBorder(verdict.color.opacity(0.7)))
@@ -66,7 +66,7 @@ struct VerdictDot: View {
 
     var body: some View {
         Image(systemName: verdict.icon)
-            .font(.system(size: 11, weight: .bold))
+            .font(.cellar(11, .bold))
             .foregroundStyle(verdict.color)
             .frame(width: 22, height: 22)
             .background(Circle().fill(.black.opacity(0.65)))
@@ -104,7 +104,7 @@ struct VerdictReasons: View {
                     Image(systemName: reason.kind.icon).foregroundStyle(reason.kind.color).frame(width: 16)
                     Text(reason.text).fixedSize(horizontal: false, vertical: true)
                 }
-                .font(.callout)
+                .font(.cCallout)
             }
         }
     }
@@ -120,12 +120,12 @@ struct VerdictDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Will it run?").font(.headline)
+                Text("Will it run?").font(.cHeadline)
                 Spacer()
                 VerdictPill(verdict: assessment.verdict)
             }
             if assessment.reasons.isEmpty {
-                Text("Cellar has nothing to go on yet. Try it and say how it went.").font(.callout).foregroundStyle(.secondary)
+                Text("Cellar has nothing to go on yet. Try it and say how it went.").font(.cCallout).foregroundStyle(.secondary)
             } else {
                 VerdictReasons(reasons: assessment.reasons)
             }
@@ -142,7 +142,7 @@ struct WorksButtons: View {
     var body: some View {
         let current = model.report(for: gameID)
         HStack(spacing: 8) {
-            Text("On this Mac:").font(.caption).foregroundStyle(.secondary)
+            Text("On this Mac:").font(.cCaption).foregroundStyle(.secondary)
             answer("It works", "hand.thumbsup.fill", true, current, .green)
             answer("It doesn't", "hand.thumbsdown.fill", false, current, .orange)
         }
@@ -151,7 +151,7 @@ struct WorksButtons: View {
     private func answer(_ title: String, _ icon: String, _ value: Bool, _ current: Bool?, _ tint: Color) -> some View {
         Button { model.report(current == value ? nil : value, for: gameID) } label: {
             Label(title, systemImage: icon)
-                .font(.caption.weight(.semibold))
+                .font(.cCaption.weight(.semibold))
                 .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(Capsule().fill(current == value ? tint.opacity(0.3) : .white.opacity(0.08)))
                 .overlay(Capsule().strokeBorder(current == value ? tint : .white.opacity(0.12)))
@@ -194,7 +194,7 @@ struct WillItRunSearch: View {
                 }
             } else if !searching, !searchedFor.isEmpty, searchedFor == term {
                 Text("Steam found nothing called \"\(searchedFor)\", or this network blocks it.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.cCallout).foregroundStyle(.secondary)
             }
         }
     }
@@ -227,7 +227,7 @@ struct WillItRunRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(match.name).font(.headline).lineLimit(1)
+                    Text(match.name).font(.cHeadline).lineLimit(1)
                     if let assessment {
                         VerdictPill(verdict: assessment.verdict)
                     } else {
@@ -235,12 +235,12 @@ struct WillItRunRow: View {
                     }
                 }
                 if let reason = assessment?.reasons.first {
-                    Text(reason.text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(reason.text).font(.cCaption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()
             if model.games.contains(where: { $0.id == match.id && $0.app.isInstalled }) {
-                Text("Installed").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 6)
+                Text("Installed").font(.cCaption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 6)
             } else {
                 Button("Get in Steam") { model.install(appID: match.id) }
                     .buttonStyle(GlassButtonStyle())

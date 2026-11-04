@@ -62,6 +62,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "26.0"
         LSApplicationCategoryType: public.app-category.games
+        ATSApplicationFontsPath: "."
         NSHighResolutionCapable: true
         NSMicrophoneUsageDescription: "Games use the microphone for voice chat."
         NSAppleEventsUsageDescription: "Cellar controls the Spotify app when you press play, pause or skip in the overlay."

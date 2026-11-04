@@ -1,4 +1,4 @@
-// Draws Cellar's app icon (a wine glass on a deep red rounded tile) into the asset catalog.
+// Draws Cellar's app icon (the Clean Glass mark on a black tile) into the asset catalog.
 // Usage: swift scripts/render-icon.swift Cellar/Assets.xcassets/AppIcon.appiconset
 import AppKit
 
@@ -15,17 +15,38 @@ func render(_ px: Int) -> Data {
     let inset = s * (1 - 824.0 / 1024.0) / 2
     let tile = NSRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
     let path = NSBezierPath(roundedRect: tile, xRadius: tile.width * 0.225, yRadius: tile.width * 0.225)
-    NSGradient(colors: [NSColor(red: 0.66, green: 0.13, blue: 0.22, alpha: 1), NSColor(red: 0.26, green: 0.03, blue: 0.09, alpha: 1)])!
-        .draw(in: path, angle: -90)
-    NSColor(white: 1, alpha: 0.12).setStroke()
+    NSColor(red: 0.071, green: 0.063, blue: 0.082, alpha: 1).setFill()
+    path.fill()
+    NSColor(white: 1, alpha: 0.14).setStroke()
     path.lineWidth = max(1, s / 256)
     path.stroke()
-    let config = NSImage.SymbolConfiguration(pointSize: tile.width * 0.5, weight: .semibold)
-        .applying(.init(paletteColors: [.white]))
-    if let glass = NSImage(systemSymbolName: "wineglass.fill", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
-        let g = glass.size
-        glass.draw(in: NSRect(x: (s - g.width) / 2, y: (s - g.height) / 2, width: g.width, height: g.height))
-    }
+    // The Clean Glass mark, in a 100 by 100 space with y going up from the tile's bottom.
+    let unit = tile.width / 100
+    let pt = { (x: CGFloat, y: CGFloat) in NSPoint(x: tile.minX + x * unit, y: tile.maxY - y * unit) }
+    let wine = NSBezierPath()
+    wine.move(to: pt(33.5, 37))
+    wine.line(to: pt(66.5, 37))
+    wine.curve(to: pt(50, 57), controlPoint1: pt(66, 50), controlPoint2: pt(60, 57))
+    wine.curve(to: pt(33.5, 37), controlPoint1: pt(40, 57), controlPoint2: pt(34, 50))
+    wine.close()
+    NSColor(red: 0.788, green: 0.188, blue: 0.302, alpha: 1).setFill()
+    wine.fill()
+    let glass = NSBezierPath()
+    glass.move(to: pt(32, 19))
+    glass.line(to: pt(68, 19))
+    glass.curve(to: pt(50, 57), controlPoint1: pt(68.5, 44), controlPoint2: pt(61, 57))
+    glass.curve(to: pt(32, 19), controlPoint1: pt(39, 57), controlPoint2: pt(31.5, 44))
+    glass.close()
+    glass.move(to: pt(50, 57))
+    glass.line(to: pt(50, 77))
+    glass.move(to: pt(37, 79))
+    glass.line(to: pt(63, 79))
+    // Thicker at tiny sizes, where a thin line would disappear.
+    glass.lineWidth = unit * (px <= 32 ? 6 : 3.6)
+    glass.lineCapStyle = .round
+    glass.lineJoinStyle = .round
+    NSColor.white.setStroke()
+    glass.stroke()
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }

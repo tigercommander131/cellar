@@ -4,22 +4,11 @@ import CellarKit
 import SwiftUI
 
 enum OverlayTab: String, CaseIterable, Identifiable {
-    case home = "Home", friends = "Friends", clips = "Clips", music = "Music", performance = "Performance", game = "Game"
+    case friends = "Friends", clips = "Clips", music = "Music", game = "Game"
     var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .home: "house.fill"
-        case .friends: "person.2.fill"
-        case .clips: "play.rectangle.on.rectangle.fill"
-        case .music: "music.note"
-        case .performance: "gauge.with.dots.needle.67percent"
-        case .game: "note.text"
-        }
-    }
 }
 
-/// Cellar's in-game overlay: a native full-screen layer above the game, opened with a hotkey. It never
+/// Cellar's in-game overlay: a control strip across the bottom of the screen, above the game, opened with a hotkey. It never
 /// touches the game's graphics, so unlike Steam's overlay it can't crash a game.
 @MainActor
 final class OverlayController {
@@ -115,7 +104,7 @@ final class OverlayController {
 
     // MARK: Keys inside the overlay
 
-    /// Esc goes back to the game; 1 to 6 and the arrows change tab, unless something's being typed.
+    /// Esc goes back to the game; 1 to 4 and the arrows change tab, unless something's being typed.
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -299,8 +288,8 @@ struct OverlayHUD: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            Image(systemName: systemImage).foregroundStyle(Color.accentColor)
-            Text(text).font(.callout.weight(.semibold))
+            Image(systemName: systemImage).foregroundStyle(Theme.wine)
+            Text(text).font(.cCallout.weight(.semibold))
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(Capsule().fill(.black.opacity(0.78)))
@@ -311,98 +300,88 @@ struct OverlayHUD: View {
     }
 }
 
-// MARK: The layer
+// MARK: The strip
 
-/// Everything over a dimmed, blurred game: who and what's going on along the top, then one of five tabs.
+/// The game stays in view up top. Everything else sits along the bottom: what you're playing, four
+/// tiles, and the selected tile's panel, after a console's control centre.
 struct OverlayView: View {
     @Environment(AppModel.self) private var model
     @State private var appeared = false
 
     var body: some View {
-        @Bindable var model = model
-        ZStack {
-            Rectangle().fill(.ultraThinMaterial)
-            Color.black.opacity(0.42)
-            RadialGradient(colors: [Color(red: 0.45, green: 0.06, blue: 0.14).opacity(0.55), .clear],
-                           center: .topLeading, startRadius: 40, endRadius: 900)
-            VStack(spacing: 0) {
-                OverlayTopBar()
-                OverlayTabBar()
-                    .padding(.top, 22)
-                Group {
-                    switch model.overlayTab {
-                    case .home: OverlayHomeTab()
-                    case .friends: OverlayFriendsTab()
-                    case .clips: OverlayClipsTab()
-                    case .music: OverlayMusicTab()
-                    case .performance: OverlayPerformanceTab()
-                    case .game: OverlayGameTab()
-                    }
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                LinearGradient(stops: [.init(color: .black.opacity(0.1), location: 0), .init(color: .black.opacity(0.42), location: 0.22),
+                                       .init(color: .black.opacity(0.94), location: 0.5)],
+                               startPoint: .top, endPoint: .bottom)
+                VStack(spacing: 14) {
+                    // Clicking the visible part of the game goes back to it.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { model.overlay.hide() }
+                    OverlayHeader()
+                    OverlayTiles()
+                    panel
+                        .frame(height: min(470, geometry.size.height * 0.56))
+                        .padding(18)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(red: 0.07, green: 0.065, blue: 0.09).opacity(0.97)))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.line))
+                    OverlayHints()
                 }
-                .id(model.overlayTab)
-                .transition(.opacity.combined(with: .offset(y: 8)))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(.top, 20)
-                OverlayHints()
-                    .padding(.top, 12)
+                .frame(maxWidth: 1320)
+                .padding(.horizontal, 40)
+                .padding(.bottom, 22)
+                .offset(y: appeared ? 0 : 28)
+                .opacity(appeared ? 1 : 0)
             }
-            .frame(maxWidth: 1400)
-            .padding(.horizontal, 44)
-            .padding(.vertical, 34)
-            .scaleEffect(appeared ? 1 : 0.985)
-            .opacity(appeared ? 1 : 0)
         }
         .ignoresSafeArea()
-        .animation(.smooth(duration: 0.22), value: model.overlayTab)
         .overlay(alignment: .top) {
             if let toast = model.toast {
                 Toast(text: toast) { model.toast = nil }.padding(.top, 26)
             }
         }
-        .onAppear { withAnimation(.smooth(duration: 0.28)) { appeared = true } }
+        .onAppear { withAnimation(.smooth(duration: 0.26)) { appeared = true } }
+    }
+
+    private var panel: some View {
+        Group {
+            switch model.overlayTab {
+            case .friends: OverlayFriendsTab()
+            case .clips: OverlayClipsTab()
+            case .music: OverlayMusicTab()
+            case .game: OverlayGameTab()
+            }
+        }
+        .id(model.overlayTab)
+        .transition(.opacity)
+        .animation(.smooth(duration: 0.18), value: model.overlayTab)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
-struct OverlayTopBar: View {
+struct OverlayHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            ArtworkImage(url: model.runningGame?.artwork?.capsule, fallbackTitle: "")
-                .frame(width: 48, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.14)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.runningGame?.name ?? "Cellar")
-                    .font(.system(size: 28, weight: .heavy))
-                    .lineLimit(1)
-                TimelineView(.periodic(from: .now, by: 30)) { _ in
-                    Text(subtitle).font(.callout.weight(.medium)).foregroundStyle(.white.opacity(0.7))
-                }
+        HStack(alignment: .center, spacing: 14) {
+            Text(model.runningGame?.name ?? "Cellar")
+                .font(.cellar(24, .heavy))
+                .lineLimit(1)
+            TimelineView(.periodic(from: .now, by: 30)) { _ in
+                Text(subtitle).font(.cCallout).foregroundStyle(.white.opacity(0.82)).lineLimit(1)
             }
-            Spacer(minLength: 20)
+            Spacer(minLength: 16)
             OverlayChips()
-            Button { model.overlay.hide() } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "play.fill")
-                    Text("Resume")
-                }
-            }
-            .buttonStyle(PillButtonStyle())
-            .help("Back to the game (\(OverlayHotkey.current.label))")
+            Button("Resume") { model.overlay.hide() }
+                .buttonStyle(PillButtonStyle())
+                .help("Back to the game (\(OverlayHotkey.current.label))")
         }
     }
 
     private var subtitle: String {
-        var parts: [String] = []
-        if let game = model.runningGame {
-            if let start = model.sessionStarts[game.id] {
-                parts.append("Playing for \(AppModel.playTime(Date().timeIntervalSince(start)))")
-            }
-            parts.append(game.profile.backend.shortName)
-            if let preset = game.profile.preset { parts.append(preset.title) }
-        }
-        return parts.joined(separator: "  ·  ")
+        guard let game = model.runningGame, let start = model.sessionStarts[game.id] else { return "" }
+        return AppModel.playTime(Date().timeIntervalSince(start)) + " this session"
     }
 }
 
@@ -445,37 +424,52 @@ struct OverlayChips: View {
 
     private func chip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         HStack(spacing: 5) { content() }
-            .font(.system(size: 12, weight: .semibold))
+            .font(.cellar(12, .semibold))
             .monospacedDigit()
             .padding(.horizontal, 10).padding(.vertical, 6)
             .background(Capsule().fill(.white.opacity(0.09)))
     }
 }
 
-struct OverlayTabBar: View {
+/// The four big tiles. Each says something useful without being opened.
+struct OverlayTiles: View {
     @Environment(AppModel.self) private var model
-    @Namespace private var pill
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 12) {
             ForEach(OverlayTab.allCases) { tab in
+                let selected = model.overlayTab == tab
                 Button { model.overlayTab = tab } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: tab.icon).font(.system(size: 12, weight: .semibold))
-                        Text(tab.rawValue).font(.system(size: 14, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(tab.rawValue).font(.cellar(15, .bold))
+                        Text(summary(tab)).font(.cCaption).lineLimit(1).opacity(0.84)
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .foregroundStyle(model.overlayTab == tab ? .white : .white.opacity(0.62))
-                    .background {
-                        if model.overlayTab == tab {
-                            Capsule().fill(Color.accentColor).matchedGeometryEffect(id: "tab", in: pill)
-                        }
-                    }
-                    .contentShape(Capsule())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .frame(height: 68)
+                    .foregroundStyle(selected ? .black : .white)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(selected ? Color.white : Color(red: 0.07, green: 0.065, blue: 0.09).opacity(0.92)))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(selected ? .clear : Theme.line))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
-            Spacer()
+        }
+    }
+
+    private func summary(_ tab: OverlayTab) -> String {
+        switch tab {
+        case .friends:
+            if model.steamOffline { return "Steam is offline" }
+            let count = model.friendsInGame.count + model.friendsOnline.count
+            return count == 0 ? "Nobody online" : "\(count) online"
+        case .clips:
+            return model.clipsRecording ? "Recording" : "Off"
+        case .music:
+            return model.spotify.name ?? "Spotify"
+        case .game:
+            return "Heat: \(model.stats.last?.thermal.title ?? "Normal")"
         }
     }
 }
@@ -484,8 +478,8 @@ struct OverlayHints: View {
     var body: some View {
         HStack(spacing: 18) {
             hint("esc", "Back to game")
-            hint("1–6", "Switch tab")
-            hint(OverlayController.clipHotkeyLabel, "Save clip, while Clips are on")
+            hint("1–4", "Switch tile")
+            hint(OverlayController.clipHotkeyLabel, "Save a clip")
             Spacer()
         }
     }
@@ -493,10 +487,10 @@ struct OverlayHints: View {
     private func hint(_ key: String, _ text: String) -> some View {
         HStack(spacing: 6) {
             Text(key)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .font(.cellar(10, .bold))
                 .padding(.horizontal, 6).padding(.vertical, 3)
                 .background(RoundedRectangle(cornerRadius: 5).fill(.white.opacity(0.12)))
-            Text(text).font(.caption)
+            Text(text).font(.cCaption)
         }
         .foregroundStyle(.white.opacity(0.55))
     }
@@ -512,7 +506,7 @@ struct OverlayCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             if let title {
                 Text(title.uppercased())
-                    .font(.caption.weight(.bold)).tracking(1.1)
+                    .font(.cCaption.weight(.bold)).tracking(1.1)
                     .foregroundStyle(.white.opacity(0.55))
             }
             content
@@ -528,7 +522,7 @@ struct OverlayCard<Content: View>: View {
 struct Sparkline: View {
     let values: [Double]
     var maximum: Double = 1
-    var color: Color = .accentColor
+    var color: Color = .white
 
     var body: some View {
         GeometryReader { geometry in

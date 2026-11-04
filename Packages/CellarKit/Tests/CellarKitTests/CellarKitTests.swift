@@ -111,6 +111,18 @@ func tempDir() throws -> URL {
     }
 }
 
+@Suite struct TrailerTests {
+    @Test func prefersTheHighlightedTrailer() {
+        let entry: [String: Any] = ["data": ["movies": [["hls_h264": "https://a.test/one.m3u8", "highlight": false],
+                                                        ["hls_h264": "https://a.test/two.m3u8", "highlight": true]]]]
+        #expect(TrailerService.bestTrailer(fromStoreEntry: entry)?.lastPathComponent == "two.m3u8")
+        let plain: [String: Any] = ["data": ["movies": [["hls_h264": "https://a.test/one.m3u8", "highlight": false]]]]
+        #expect(TrailerService.bestTrailer(fromStoreEntry: plain)?.lastPathComponent == "one.m3u8")
+        #expect(TrailerService.bestTrailer(fromStoreEntry: ["data": [String: Any]()]) == nil)
+        #expect(TrailerService.bestTrailer(fromStoreEntry: nil) == nil)
+    }
+}
+
 @Suite struct LocalArtworkTests {
     @Test func findsSteamsCachedImages() throws {
         let paths = CellarPaths(root: try tempDir())

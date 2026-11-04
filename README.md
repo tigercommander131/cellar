@@ -30,26 +30,21 @@ the Steam menu, top right, which also has shortcuts to Steam's store, downloads 
 
 ## In a game
 
-Press **Shift+Tab** to open Cellar's overlay, a full-screen layer over the game:
+Press **Shift+Tab** to open Cellar's overlay. The game stays in view, with four tiles along the bottom:
 
-- **Home:** the game, time played, quick actions, friends, heat, memory and volume.
 - **Friends:** **Join** a friend's game or **Invite** them to yours. Join works in games that use Steam's
   lobbies; games with their own server browser are joined inside the game.
 - **Clips:** **Option+C** saves the last 30 seconds (or up to 2 minutes), with sound, to Movies › Cellar
-  Clips. Also screenshots. Cellar asks for macOS's Screen Recording permission once; after that they start
-  with every game, unless you turn that off in Settings. Only your game is recorded, and recording
-  stops when it closes.
+  Clips. Also screenshots, and trimming. Cellar asks for macOS's Screen Recording permission once; after that
+  Clips start with every game, unless you turn that off in Settings. Only your game is recorded.
 - **Music:** control the Spotify app on your Mac, with cover art. macOS asks once whether Cellar can
   control it; there's no sign-in. A pop-up shows each new song during a game.
-- **Performance:** CPU, memory, heat, battery, frame rate while Clips are on, and presets.
-- **Game:** notes, guides, and quitting the game.
+- **Game:** performance, recommended settings for your Mac, notes, and quitting the game.
 
-Steam's own overlay stays off unless you switch it on for a game, in its settings, under Advanced.
+Steam's own overlay stays off unless you switch it on for a game, under its advanced options.
 
-Each game also has a **Quality / Balanced / Battery** preset. Frame limits work on DXMT games; on
-D3DMetal games, use the game's own limit or vsync.
-
-Press the scissors on a clip to trim it. That saves a new file and keeps the original.
+Each game also has a **Best looks / Balanced / Battery saver** choice in its settings. Frame limits work on
+DXMT games; on D3DMetal games, use the game's own limit or vsync.
 
 ## Menu bar
 
@@ -61,7 +56,7 @@ You can turn it off in Settings.
 Every game gets a badge: **Runs well**, **Should run**, **May struggle** or **Blocked**. Click it to see why.
 It looks for anti-cheat in the game's files, what graphics it uses, and how it's gone on your Mac, and adds
 [AreWeAntiCheatYet](https://areweanticheatyet.com), [ProtonDB](https://www.protondb.com) (Linux results, so
-only a hint) and Steam's memory requirements. The Library's search does the same for any game on Steam,
+only a hint) and Steam's memory requirements. The search under All Games does the same for any game on Steam,
 before you install it. Your own "It works" or "It doesn't" beats all of that.
 
 If a game closes right after starting, Cellar asks whether to try another graphics option, and keeps the one
@@ -96,11 +91,13 @@ swift run --package-path Packages/CellarKit cellar steam play 730
 - Release: `scripts/make-signing-cert.sh` once, then `scripts/release-app.sh <version> <build>`.
   `CHANNEL=beta` publishes to people who switched on beta versions only.
 
+Trailers on the Games screen are Steam's own, silent, and stop while a game runs or Cellar isn't in front.
+
 ## License
 
 Cellar's own code: [PolyForm Noncommercial 1.0.0](LICENSE). Free to use and share, never sold.
 
-Third-party parts keep their licenses: Wine (LGPL-2.1+, source attached to each engine
+Third-party parts keep their licenses: the Sora typeface (SIL Open Font License, see `Cellar/Resources/Sora-OFL.txt`), Wine (LGPL-2.1+, source attached to each engine
 release), DXMT (MIT), wine-mono, and the x86_64 libraries listed in
 `engine/RELEASE-NOTES.md`. D3DMetal is Apple's and is never redistributed by Cellar: each Mac
 downloads it from Gcenx's Game Porting Toolkit build during setup, under Apple's license.

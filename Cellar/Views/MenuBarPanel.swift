@@ -34,10 +34,10 @@ struct MenuBarPanel: View {
         HStack(spacing: 10) {
             AppMark(size: 28)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Cellar").font(.headline)
+                Wordmark(size: 16)
                 HStack(spacing: 5) {
                     Circle().fill(model.steamStatus.color).frame(width: 7, height: 7)
-                    Text("Steam: \(model.steamStatus.title)").font(.caption).foregroundStyle(.secondary)
+                    Text("Steam: \(model.steamStatus.title)").font(.cCaption).foregroundStyle(.secondary)
                 }
             }
             Spacer()
@@ -53,9 +53,9 @@ struct MenuBarPanel: View {
                     .frame(width: 34, height: 50)
                     .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(game.name).font(.callout.weight(.semibold)).lineLimit(1)
+                    Text(game.name).font(.cCallout.weight(.semibold)).lineLimit(1)
                     if let start = model.sessionStarts[game.id] {
-                        Text(AppModel.playTime(Date().timeIntervalSince(start))).font(.caption).foregroundStyle(.secondary)
+                        Text(AppModel.playTime(Date().timeIntervalSince(start))).font(.cCaption).foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 4)
@@ -96,7 +96,7 @@ struct MenuBarPanel: View {
                                 Avatar(friend: friend, size: 24)
                             }
                         }
-                        Text(friendsLine).font(.caption).foregroundStyle(.secondary)
+                        Text(friendsLine).font(.cCaption).foregroundStyle(.secondary)
                         Spacer()
                     }
                     .contentShape(Rectangle())
@@ -122,22 +122,22 @@ struct MenuBarPanel: View {
                 dismiss()
                 model.showClipsFolder()
             }
-            SettingsLink { Text("Settings") }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            link("Settings") {
+                model.tab = .settings
+                showCellar()
+            }
             Spacer()
             link("Quit Cellar") { NSApp.terminate(nil) }
         }
     }
 
     private func link(_ title: String, run: @escaping () -> Void) -> some View {
-        Button(title, action: run).buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
+        Button(title, action: run).buttonStyle(.plain).font(.cCaption).foregroundStyle(.secondary)
     }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(title.uppercased()).font(.caption2.weight(.bold)).tracking(1).foregroundStyle(.secondary)
+            Text(title.uppercased()).font(.cCaption2.weight(.bold)).tracking(1).foregroundStyle(.secondary)
             content()
         }
     }
@@ -161,12 +161,12 @@ struct MenuBarGameRow: View {
                 ArtworkImage(url: game.artwork?.capsule)
                     .frame(width: 24, height: 36)
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                Text(game.name).font(.callout).lineLimit(1)
+                Text(game.name).font(.cCallout).lineLimit(1)
                 Spacer(minLength: 4)
                 if model.launching == game.id {
                     ProgressView().controlSize(.small)
                 } else if hovering {
-                    Image(systemName: "play.fill").font(.caption)
+                    Image(systemName: "play.fill").font(.cCaption)
                 }
             }
             .padding(5)

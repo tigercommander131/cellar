@@ -74,7 +74,8 @@ struct OpenGameIntent: OpenIntent {
         let model = AppModel.shared
         model.start()
         model.focusedGameID = target.id
-        model.tab = .home
+        model.tab = .games
+        model.showAllGames = false
         return .result()
     }
 }

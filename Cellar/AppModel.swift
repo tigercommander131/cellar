@@ -18,8 +18,11 @@ struct Game: Identifiable, Equatable {
 }
 
 enum Tab: String, CaseIterable, Identifiable {
-    case home = "Home", library = "Library", friends = "Friends"
+    case games = "Games", friends = "Friends", settings = "Settings"
     var id: String { rawValue }
+
+    /// Settings has its own button at the other end of the top bar.
+    static let navigation: [Tab] = [.games, .friends]
 }
 
 @MainActor
@@ -57,7 +60,8 @@ final class AppModel {
     /// The game waiting on the "use Battery preset?" question.
     var batteryPromptGame: Game?
 
-    var tab: Tab = .home
+    var tab: Tab = .games
+    var showAllGames = false
     var focusedGameID: String?
     var settingsGame: Game?
     var friends: [SteamFriend] = []
@@ -69,7 +73,7 @@ final class AppModel {
     var ownConnect: String?
     var invitedFriends: Set<String> = []
     let overlay = OverlayController()
-    var overlayTab: OverlayTab = .home
+    var overlayTab: OverlayTab = .friends
 
     // Online and offline (AppModel+Connection)
     var connectionMode: ConnectionMode
@@ -143,6 +147,8 @@ final class AppModel {
 
     var menuBarIcon: Bool
     var betaUpdates: Bool
+    var trailersEnabled: Bool
+    let trailers: TrailerService
     /// Asks the updater to check now, showing the result. Set when the app starts.
     var checkForUpdates: (() -> Void)?
 
@@ -161,6 +167,7 @@ final class AppModel {
         friendsService = FriendsService(steam: core.steam)
         compatibility = CompatibilityService(paths: core.paths)
         gameOptions = GameOptionsService(paths: core.paths)
+        trailers = TrailerService(paths: core.paths)
         hideSteamWhilePlaying = core.hideSteamWhilePlaying
         let state = core.loadState()
         showFPS = state.showFPS ?? false
@@ -171,6 +178,7 @@ final class AppModel {
         selfFixGames = state.selfFixGames ?? true
         menuBarIcon = state.menuBarIcon ?? true
         betaUpdates = state.betaUpdates ?? false
+        trailersEnabled = state.trailers ?? true
         overlay.model = self
     }
 
@@ -216,7 +224,7 @@ final class AppModel {
         if let raw = ProcessInfo.processInfo.environment["CELLAR_OVERLAY_DEMO"] {
             Task {
                 try? await Task.sleep(for: .seconds(3))
-                overlay.show(tab: OverlayTab(rawValue: raw) ?? .home, demo: true)
+                overlay.show(tab: OverlayTab(rawValue: raw) ?? .friends, demo: true)
             }
         }
     }
@@ -277,6 +285,23 @@ final class AppModel {
         let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
         let content: AnyView
         switch parts[0] {
+        case "games":
+            content = AnyView(MainView())
+        case "friends":
+            tab = .friends
+            content = AnyView(MainView())
+        case "all":
+            showAllGames = true
+            content = AnyView(MainView())
+        case "settings":
+            tab = .settings
+            content = AnyView(MainView())
+        case "game":
+            settingsGame = games.first { $0.id == parts[1] }
+            content = AnyView(MainView())
+        case "overlay":
+            overlayTab = OverlayTab(rawValue: parts[1]) ?? .friends
+            content = AnyView(OverlayView())
         case "trim":
             let clip = ClipItem(url: URL(fileURLWithPath: parts[1]), game: "Test", date: Date(), size: 0, kind: .video)
             content = AnyView(ClipTrimView(clip: clip, close: {}).padding(20))
@@ -291,6 +316,7 @@ final class AppModel {
         window.isReleasedWhenClosed = false
         window.title = "CellarDemo"
         window.contentView = NSHostingView(rootView: content.environment(self).preferredColorScheme(.dark))
+        window.setContentSize(NSSize(width: 1100, height: 720))
         window.orderBack(nil)
         trimDemoWindow = window
     }
@@ -509,7 +535,8 @@ final class AppModel {
         guard parts.first == "play", parts.count == 2,
               let game = installedGames.first(where: { $0.id == parts[1] }) else { return }
         focusedGameID = game.id
-        tab = .home
+        tab = .games
+        showAllGames = false
         play(game)
     }
 
@@ -554,6 +581,13 @@ final class AppModel {
         menuBarIcon = on
         var state = core.loadState()
         state.menuBarIcon = on ? nil : false
+        try? core.saveState(state)
+    }
+
+    func setTrailersEnabled(_ on: Bool) {
+        trailersEnabled = on
+        var state = core.loadState()
+        state.trailers = on ? nil : false
         try? core.saveState(state)
     }
 

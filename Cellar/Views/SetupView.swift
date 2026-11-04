@@ -23,12 +23,15 @@ struct SetupView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 Spacer()
-                AppMark(size: 56)
-                    .padding(.bottom, 22)
+                HStack(spacing: 12) {
+                    AppMark(size: 48)
+                    Wordmark(size: 30)
+                }
+                .padding(.bottom, 26)
                 Text(model.phase == .settingUp ? "Setting things up…" : "Welcome to Cellar")
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.cellar(30, .bold))
                 Text(subtitle)
-                    .font(.title3)
+                    .font(.cTitle3)
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)
                     .fixedSize(horizontal: false, vertical: true)
@@ -36,7 +39,7 @@ struct SetupView: View {
                 if model.phase == .settingUp || model.setupError != nil {
                     ProgressView(value: overallProgress)
                         .progressViewStyle(.linear)
-                        .tint(.accentColor)
+                        .tint(.white)
                         .padding(.top, 26)
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(items) { item in
@@ -51,7 +54,7 @@ struct SetupView: View {
                 if let error = model.setupError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                        .font(.callout)
+                        .font(.cCallout)
                         .padding(.top, 18)
                         .textSelection(.enabled)
                 }
@@ -71,7 +74,7 @@ struct SetupView: View {
                 .padding(.top, 28)
                 Spacer()
                 Text("D3DMetal is Apple software, downloaded from Gcenx's Game Porting Toolkit build under Apple's license. Cellar isn't affiliated with CodeWeavers, Valve or Apple.")
-                    .font(.caption)
+                    .font(.cCaption)
                     .foregroundStyle(.tertiary)
                     .padding(.bottom, 24)
             }
@@ -82,7 +85,7 @@ struct SetupView: View {
             SetupArt()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Theme.ground)
     }
 
     private var subtitle: String {
@@ -148,7 +151,7 @@ struct ChecklistRow: View {
                 Text(detail).foregroundStyle(.secondary).monospacedDigit()
             }
         }
-        .font(.body)
+        .font(.cBody)
     }
 }
 
@@ -172,10 +175,8 @@ struct SetupArt: View {
             )
         }
         .overlay {
-            Image(systemName: "wineglass.fill")
-                .font(.system(size: 160, weight: .light))
-                .foregroundStyle(.white.opacity(0.12))
-                .blendMode(.plusLighter)
+            GlassMark(line: .white.opacity(0.28), wine: .white.opacity(0.14))
+                .frame(width: 320, height: 320)
         }
         .ignoresSafeArea()
     }
