@@ -141,7 +141,7 @@ struct CellarToggleStyle: ToggleStyle {
                 }
                 .animation(.snappy(duration: 0.16), value: configuration.isOn)
                 .contentShape(Rectangle())
-                .accessibilityLabel(configuration.label)
+                .accessibilityLabel(content: { _ in configuration.label })
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(configuration.isOn ? [.isSelected] : [])
