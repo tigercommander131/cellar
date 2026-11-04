@@ -1,5 +1,8 @@
-**Cellar 2.1.2**
+**Cellar 2.2**
 
-- **Clips work again after updating.** macOS kept showing the permission as on after the 2.1 update, but wasn't honouring it. Cellar now clears that and asks once. Allow it and reopen Cellar.
-- **Clips tell you what's wrong.** Option+C and the start of a game now say so if Clips can't record, instead of doing nothing.
-- **Closing a game quickly no longer changes its settings.** Cellar now asks before trying another graphics option, and doesn't ask about games that already run on your Mac.
+- **AirPods and other outputs work mid-game.** Sound follows your Mac's output when it changes, without restarting the game.
+- **Games stop floating above other apps** after you switch away.
+- **A tidier overlay.** Buttons respond to the first click, ones you can't use look greyed out, and music buttons no longer close it unexpectedly.
+- **Covers without internet.** Cellar uses the images Steam has already saved, so they show on Wi-Fi that blocks Steam.
+
+Includes a new engine download, which needs Steam and your games closed.
