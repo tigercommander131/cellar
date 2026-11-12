@@ -14,6 +14,9 @@ struct GameScreen: View {
     private var current: GameProfile { model.core.profiles.profile(for: game.id) }
 
     var body: some View {
+        // This screen shows settings read from the game's saved file, which SwiftUI can't watch.
+        // The model counts every save, and reading the count here redraws the screen after one.
+        let _ = model.settingsRevision
         ZStack {
             Theme.ground
             Color.clear
@@ -38,6 +41,7 @@ struct GameScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         presets
+                        sharpness
                         if let assessment = model.verdicts[game.id] { GameCard { VerdictDetails(gameID: game.id, assessment: assessment) } }
                         GameCard { RecommendedSettingsView(game: game, showsPreset: false) }
                         advanced
@@ -74,6 +78,22 @@ struct GameScreen: View {
             if !current.backend.supportsFrameCap {
                 Text("\(current.backend.shortName) can't limit frame rate from Cellar. Use vsync or the frame limit in the game's own settings to save power.")
                     .font(.cCaption).foregroundStyle(.white.opacity(0.78)).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Out in the open, not under Advanced: it's the one switch people flip per game, both ways.
+    private var sharpness: some View {
+        GameCard {
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Retina").font(.cellar(14, .semibold))
+                    Text("Draws at your screen's full sharpness. Crisper, but slower and warmer: best for light or older games."
+                         + (game.isRunning ? " Applies the next time it starts." : ""))
+                        .font(.cCaption).foregroundStyle(Theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                CellarSwitch("Retina", isOn: current.retina ?? false) { model.setRetina($0, for: game) }
             }
         }
     }
@@ -116,11 +136,10 @@ struct GameScreen: View {
                             }
                             .labelsHidden().fixedSize()
                         }
-                        SettingRow("Retina resolution", "Sharper, but slower.") {
-                            Toggle("Retina resolution", isOn: toggle(\.retina)).toggleStyle(CellarToggleStyle()).labelsHidden()
-                        }
                         SettingRow("Steam overlay", "Experimental, and can crash some games. Only needed for a game's own Invite button.") {
-                            Toggle("Steam overlay", isOn: toggle(\.steamOverlay)).toggleStyle(CellarToggleStyle()).labelsHidden()
+                            CellarSwitch("Steam overlay", isOn: current.steamOverlay ?? false) { on in
+                                model.updateSettings(for: game) { $0.steamOverlay = on ? true : nil }
+                            }
                         }
                         SettingRow("Launch options", "For example, -novid") {
                             TextField("Launch options", text: $launchOptions, prompt: Text("None"))
@@ -158,12 +177,10 @@ struct GameScreen: View {
         model.updateSettings(for: game) { $0.gameArgs = args }
     }
 
+    /// The value is read now, while the screen is being drawn, not later inside the Binding.
     private func binding<T>(_ key: WritableKeyPath<GameProfile, T?>) -> Binding<T?> {
-        Binding(get: { override?[keyPath: key] }, set: { value in model.updateSettings(for: game) { $0[keyPath: key] = value } })
-    }
-
-    private func toggle(_ key: WritableKeyPath<GameProfile, Bool?>) -> Binding<Bool> {
-        Binding(get: { current[keyPath: key] ?? false }, set: { on in model.updateSettings(for: game) { $0[keyPath: key] = on ? true : nil } })
+        let value = override?[keyPath: key]
+        return Binding(get: { value }, set: { value in model.updateSettings(for: game) { $0[keyPath: key] = value } })
     }
 }
 

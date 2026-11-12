@@ -71,6 +71,8 @@ final class OverlayController {
         isDemo = false
         removeKeyMonitor()
         model?.stopMusicPolling()
+        // Closes the clip editor, so a clip that was playing doesn't carry on over the game.
+        model?.overlayClip = nil
         panel.orderOut(nil)
         if returnToGame { previousApp?.activate() }
         previousApp = nil

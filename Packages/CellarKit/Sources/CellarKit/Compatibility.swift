@@ -431,7 +431,8 @@ public actor CompatibilityService {
             result.antiCheats = entry.anticheats ?? []
         }
         if !antiCheatByID.isEmpty { anyAnswer = true }
-        if let store = await storeDetails(appID) {
+        let store = await storeDetails(appID)
+        if let store {
             anyAnswer = true
             result.minimumMemoryGB = store.memory
             result.hasMacVersion = store.mac
@@ -443,6 +444,17 @@ public actor CompatibilityService {
         }
         // Nothing answered (a blocked network): use what's saved, and ask again next time.
         guard anyAnswer else { return cache.online[appID] }
+        if store == nil {
+            // The store answers for every game, so this network is blocking it. The anti-cheat list is
+            // saved on disk and still counts, but it mustn't wipe what an earlier check learned, or stop
+            // another look for two weeks: ask again in an hour.
+            let old = cache.online[appID]
+            result.minimumMemoryGB = old?.minimumMemoryGB
+            result.hasMacVersion = old?.hasMacVersion
+            result.protonTier = result.protonTier ?? old?.protonTier
+            result.protonReports = result.protonReports ?? old?.protonReports
+            result.checked = Date().addingTimeInterval(3600 - Self.onlineFreshness)
+        }
         cache.online[appID] = result
         save()
         return result

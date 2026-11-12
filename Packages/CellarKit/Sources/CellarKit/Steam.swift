@@ -48,7 +48,7 @@ public struct Steam: Sendable {
         try? FileManager.default.removeItem(at: local)
         try FileManager.default.copyItem(at: setup, to: local)
         let wine = bottle.wine(engine: engine)
-        try wine.run([wine.windowsPath(local), "/S"], config: LaunchConfig(backend: .wined3d), log: log, timeout: 600)
+        try wine.run([wine.windowsPath(local), "/S"], config: LaunchConfig(backend: .wined3d), log: log, timeout: 600, stopBottleOnTimeout: true)
         // The installer may start Steam by itself; stop it so we launch with our settings.
         wine.kill()
         guard isInstalled else { throw CellarError("The Steam installer finished but steam.exe is missing. See \(log.path).") }

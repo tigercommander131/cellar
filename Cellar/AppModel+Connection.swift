@@ -69,12 +69,15 @@ extension AppModel {
     }
 
     private func networkChanged() {
+        steamBlockedUntil = nil
         networkChangeTask?.cancel()
         networkChangeTask = Task { [weak self] in
             // Wi-Fi joining sends several changes in a row, and needs a moment to settle.
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled else { return }
-            await self?.reconcileConnection()
+            // Its own task: another change arriving mid-check would cancel this one, and a cancelled check
+            // reads as "no internet", which took Steam offline on a good network.
+            Task { await self?.reconcileConnection() }
         }
     }
 
@@ -92,7 +95,7 @@ extension AppModel {
         checkingConnection = true
         defer { checkingConnection = false }
 
-        var reach = await SteamConnectivity.probe()
+        var reach = await checkedReachability()
         reachability = reach
         var wantsOffline = connectionMode.wantsOffline(reach)
         let core = self.core
@@ -120,13 +123,22 @@ extension AppModel {
             if let last = lastConnectionSwitch, Date().timeIntervalSince(last) < 60 { return }
             if wantsOffline {
                 try? await Task.sleep(for: .seconds(15))
-                reach = await SteamConnectivity.probe()
+                reach = await checkedReachability()
                 reachability = reach
                 wantsOffline = connectionMode.wantsOffline(reach)
                 guard wantsOffline != steamOffline, runningGame == nil, launching == nil else { return }
             }
         }
         await switchSteam(offline: wantsOffline, announce: true)
+    }
+
+    /// The network check, minus what Steam's own log has already disproved: on some networks the check
+    /// passes but Steam can't sign in. That's remembered for half an hour, or until the network changes,
+    /// so Steam isn't put back online every five minutes to hang at "Connecting…".
+    private func checkedReachability() async -> SteamReachability {
+        let reach = await SteamConnectivity.probe()
+        if reach == .reachable, let until = steamBlockedUntil, Date() < until { return .blocked }
+        return reach
     }
 
     /// `thenStart` runs instead of reopening Steam in the background.
@@ -142,6 +154,8 @@ extension AppModel {
             if announce {
                 toast = offline ? "Steam can't connect on this network, so it's offline. Games still start." : "Steam is back online."
             }
+            // Back online by itself: make sure it really signs in, or go offline again.
+            if !offline, mode == nil, connectionMode == .automatic { watchLogon(since: Date(), retry: nil, preset: nil) }
         } catch {
             alert = error.localizedDescription
         }
@@ -155,7 +169,7 @@ extension AppModel {
     func startSteam(_ mode: Steam.Mode, preset: GamePreset? = nil, onError: (@MainActor () -> Void)? = nil) {
         let core = self.core
         Task {
-            while switchingConnection { try? await Task.sleep(for: .milliseconds(300)) }
+            while switchingConnection || installingPack { try? await Task.sleep(for: .milliseconds(300)) }
             let wasRunning = await Task.detached { core.isSteamRunning() }.value
             if !wasRunning, steamUser != nil {
                 let reach = connectionMode == .automatic ? await SteamConnectivity.probe() : (reachability ?? .reachable)
@@ -174,7 +188,7 @@ extension AppModel {
 
     /// The check can pass on a network that still stops Steam itself. Steam's log shows that: it keeps
     /// trying and never connects. Then go offline and carry on with whatever was asked for.
-    private func watchLogon(since start: Date, retry: Steam.Mode, preset: GamePreset?) {
+    private func watchLogon(since start: Date, retry: Steam.Mode?, preset: GamePreset?) {
         logonWatch?.cancel()
         logonWatch = Task { [weak self] in
             for _ in 0..<36 {
@@ -186,6 +200,7 @@ extension AppModel {
                 case .tryingSince(let first):
                     guard Date().timeIntervalSince(first) >= 45, self.runningGame == nil else { continue }
                     self.reachability = .blocked
+                    self.steamBlockedUntil = Date().addingTimeInterval(30 * 60)
                     await self.switchSteam(offline: true, announce: true, thenStart: retry, preset: preset)
                     return
                 case .idle:

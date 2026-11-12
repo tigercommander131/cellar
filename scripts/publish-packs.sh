@@ -9,6 +9,40 @@ REPO="${REPO:-tigercommander131/cellar}"
 OUT="$ROOT/.work/packs-release"
 rm -rf "$OUT"; mkdir -p "$OUT"
 
+# Every Cellar downloads these, and one it can't read is ignored without a word: the game just loses its
+# fixes. So a mistake stops here instead.
+python3 - "$ROOT/profiles" <<'PY'
+import json, pathlib, sys
+allowed = {"graphics": {"d3dmetal", "dxmt", "wined3d"}, "preset": {"quality", "balanced", "battery"}}
+kinds = {"appId": str, "title": str, "windowsVersion": str, "notes": str, "minRAMGB": int, "frameCap": int,
+         "retina": bool, "metalHUD": bool, "writeSteamAppID": bool, "steamOverlay": bool,
+         "steamArgs": list, "gameArgs": list, "registry": list, "env": dict, "dllOverrides": dict,
+         "graphics": str, "preset": str}
+errors = []
+for f in sorted(pathlib.Path(sys.argv[1]).glob("*.json")):
+    try:
+        p = json.loads(f.read_text())
+    except ValueError as e:
+        errors.append(f"{f.name}: not valid JSON ({e})"); continue
+    if not isinstance(p, dict):
+        errors.append(f"{f.name}: must be an object"); continue
+    if p.get("appId") != f.stem:
+        errors.append(f"{f.name}: appId must be \"{f.stem}\", the file's name")
+    for key, value in p.items():
+        if key not in kinds:
+            errors.append(f"{f.name}: unknown setting \"{key}\"")
+        elif not isinstance(value, kinds[key]) or (kinds[key] is int and isinstance(value, bool)):
+            errors.append(f"{f.name}: \"{key}\" has the wrong kind of value")
+        elif key in allowed and value not in allowed[key]:
+            errors.append(f"{f.name}: \"{key}\" must be one of {sorted(allowed[key])}")
+        elif kinds[key] is list and key != "registry" and not all(isinstance(v, str) for v in value):
+            errors.append(f"{f.name}: \"{key}\" must be a list of text")
+        elif kinds[key] is dict and not all(isinstance(v, str) for v in value.values()):
+            errors.append(f"{f.name}: \"{key}\" must map text to text")
+if errors:
+    sys.exit("Not publishing, the game fixes have mistakes:\n  " + "\n  ".join(errors))
+PY
+
 # Deterministic tarball (fixed owners and times, sorted, no gzip timestamp) so unchanged
 # profiles keep the same checksum on any machine.
 python3 - "$ROOT" "$OUT/cellar-profiles.tar.gz" <<'PY'

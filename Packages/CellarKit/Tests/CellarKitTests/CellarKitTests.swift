@@ -239,6 +239,17 @@ func tempDir() throws -> URL {
         #expect(leftovers.isEmpty)
     }
 
+    @Test func manifestSkipsPacksItDoesNotKnow() throws {
+        let json = """
+        {"schema": 2, "packs": [
+          {"kind": "engine", "version": "1", "url": "https://example.com/e.tar.xz", "sha256": "aa", "archiveRoot": "e"},
+          {"kind": "something-new", "version": "1", "url": "https://example.com/n.tar.xz", "sha256": "bb", "archiveRoot": ""}
+        ]}
+        """
+        let manifest = try JSONDecoder().decode(PackManifest.self, from: Data(json.utf8))
+        #expect(manifest.packs.map(\.kind) == [.engine])
+    }
+
     @Test func rejectsBadChecksums() async throws {
         let root = try tempDir()
         let file = root.appending(path: "a.bin")
@@ -488,6 +499,10 @@ func tempDir() throws -> URL {
         let all = frames(5)
         #expect(try #require(ClipTimeline.span(of: all, seconds: 30)).lowerBound == 0)
         #expect(ClipTimeline.span(of: [], seconds: 30) == nil)
+        // A still screen: the last picture is 20 seconds old but the sound is current, so the clip
+        // counts back from the sound and starts 10 seconds before that picture, not 30.
+        let still = frames(60)
+        #expect(try #require(ClipTimeline.span(of: still, seconds: 30, until: 79.9)).lowerBound == 490)
         #expect(ClipTimeline.span(of: [.init(time: 1, isKeyframe: false)], seconds: 30) == nil)
     }
 

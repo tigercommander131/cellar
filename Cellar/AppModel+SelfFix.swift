@@ -82,7 +82,7 @@ extension AppModel {
     private func startRetry(_ game: Game, on backend: GraphicsBackend, preset: GamePreset?) {
         Task {
             try? await Task.sleep(for: .seconds(1))
-            launching = game.id
+            markLaunching(game.id)
             lastLaunch[game.id] = Date()
             startSteam(.play(appID: game.id, args: []), preset: preset) { [weak self] in self?.launching = nil }
         }

@@ -1,6 +1,6 @@
 # Cellar 3.0: the overhaul
 
-Status: **on Joel's Mac only, not released.** Prototypes: [Cellar Redesign Directions](https://claude.ai/artifact/GQEWDbxUqyfTYPdZtnK9UB) (private).
+Status: **released to everyone as 3.0.0 (build 15) with engine r5, on 2026-11-04.** Prototypes: [Cellar Redesign Directions](https://claude.ai/artifact/GQEWDbxUqyfTYPdZtnK9UB) (private).
 
 ## Decisions
 

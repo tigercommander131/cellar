@@ -93,17 +93,20 @@ public struct Wine: Sendable {
     }
 
     /// Runs a Wine command and waits, killing it after `timeout`. Output goes to `log`.
+    /// `stopBottleOnTimeout` also stops everything else in the bottle, which is only right during setup:
+    /// with Steam or a game running it would close them.
     @discardableResult
-    public func run(_ arguments: [String], config: LaunchConfig, log: URL? = nil,
-                    timeout: TimeInterval = 600, workingDirectory: URL? = nil) throws -> Int32 {
+    public func run(_ arguments: [String], config: LaunchConfig, log: URL? = nil, timeout: TimeInterval = 600,
+                    workingDirectory: URL? = nil, stopBottleOnTimeout: Bool = false) throws -> Int32 {
         let process = try start(arguments, config: config, log: log, workingDirectory: workingDirectory)
-        let deadline = Date().addingTimeInterval(timeout)
+        // Time awake, not clock time: a Mac that slept mid-run hasn't used up the timeout.
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
         while process.isRunning {
-            if Date() > deadline {
+            if ProcessInfo.processInfo.systemUptime > deadline {
                 process.terminate()
                 Thread.sleep(forTimeInterval: 2)
                 if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
-                kill(wait: false)
+                if stopBottleOnTimeout { kill(wait: false) }
                 throw CellarError("wine \(arguments.first ?? "") timed out after \(Int(timeout)) s.")
             }
             Thread.sleep(forTimeInterval: 0.1)

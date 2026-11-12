@@ -31,6 +31,23 @@ public struct PackManifest: Codable, Sendable {
     public var schema: Int
     public var packs: [PackEntry]
 
+    public init(schema: Int, packs: [PackEntry]) {
+        self.schema = schema
+        self.packs = packs
+    }
+
+    /// Skips entries this version doesn't understand (a pack kind added later), so one new line in
+    /// `packs.json` can't stop older Cellars updating everything else.
+    public init(from decoder: Decoder) throws {
+        struct Lenient: Decodable {
+            var entry: PackEntry?
+            init(from decoder: Decoder) throws { entry = try? PackEntry(from: decoder) }
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decodeIfPresent(Int.self, forKey: .schema) ?? 1
+        packs = try container.decode([Lenient].self, forKey: .packs).compactMap(\.entry)
+    }
+
     public func entry(_ kind: PackKind) -> PackEntry? { packs.first { $0.kind == kind } }
 
     public static let remoteURL = URL(string: "https://github.com/tigercommander131/cellar/releases/download/packs/packs.json")!
@@ -74,9 +91,29 @@ public struct PackStore: Sendable {
     /// Downloads (or reuses a cached download), verifies, unpacks to a staging folder,
     /// then swaps it in. The old pack stays until the new one is fully in place.
     public func install(_ entry: PackEntry, progress: (@Sendable (Double) -> Void)? = nil) async throws {
-        try paths.ensureLayout()
-        let archive = try await Downloader(directory: paths.downloads).fetch(entry.url, sha256: entry.sha256, progress: progress)
+        let archive = try await download(entry, progress: progress)
         try installArchive(archive, entry: entry)
+        removeDownload(archive)
+    }
+
+    /// The verified archive, from the cache when it's already there. Nothing is installed.
+    public func download(_ entry: PackEntry, progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
+        try paths.ensureLayout()
+        return try await Downloader(directory: paths.downloads).fetch(entry.url, sha256: entry.sha256, progress: progress)
+    }
+
+    /// An installed pack's archive is dead weight (about 150 MB for an engine).
+    public func removeDownload(_ archive: URL) {
+        guard archive.deletingLastPathComponent().standardizedFileURL == paths.downloads.standardizedFileURL else { return }
+        try? FileManager.default.removeItem(at: archive)
+    }
+
+    /// Empties the download cache. Only when nothing is waiting to be installed from it.
+    public func clearDownloads() {
+        let fm = FileManager.default
+        for item in (try? fm.contentsOfDirectory(at: paths.downloads, includingPropertiesForKeys: nil)) ?? [] {
+            try? fm.removeItem(at: item)
+        }
     }
 
     public func installArchive(_ archive: URL, entry: PackEntry) throws {

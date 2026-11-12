@@ -73,7 +73,8 @@ struct MenuBarPanel: View {
             VStack(spacing: 4) {
                 ForEach(model.installedGames.prefix(4)) { game in
                     MenuBarGameRow(game: game) {
-                        dismiss()
+                        // A question before starting (on battery, blocked by anti-cheat) shows in the main window.
+                        if model.playWillAsk(game) { showCellar() } else { dismiss() }
                         model.focusedGameID = game.id
                         model.play(game)
                     }

@@ -83,33 +83,36 @@ struct SettingsScreen: View {
     }
 
     private var general: some View {
-        Group {
+        // Read here, in the body, so the screen redraws when they change.
+        let mode = model.connectionMode
+        return Group {
             SettingRow("Steam connection", "Goes offline by itself on Wi-Fi that blocks Steam, and back online when it can. Right now: \(model.steamStatus.title).") {
-                Picker("Steam connection", selection: Binding(get: { model.connectionMode }, set: { model.setConnectionMode($0) })) {
+                Picker("Steam connection", selection: Binding(get: { mode }, set: { model.setConnectionMode($0) })) {
                     Text("Automatic").tag(ConnectionMode.automatic)
                     Text("Always online").tag(ConnectionMode.online)
                     Text("Always offline").tag(ConnectionMode.offline)
                 }
                 .labelsHidden().fixedSize()
             }
-            ToggleRow("Show Cellar in the menu bar", "Your games and music, one click away.", isOn: Binding(get: { model.menuBarIcon }, set: { model.setMenuBarIcon($0) }))
-            ToggleRow("Find games in Spotlight", "Type a game's name to start it. Also lets you say \"Play Teardown in Cellar\" to Siri.", isOn: Binding(get: { model.gamesInSpotlight }, set: { model.setGamesInSpotlight($0) }))
+            ToggleRow("Show Cellar in the menu bar", "Your games and music, one click away.", isOn: model.menuBarIcon) { model.setMenuBarIcon($0) }
+            ToggleRow("Find games in Spotlight", "Type a game's name to start it. Also lets you say \"Play Teardown in Cellar\" to Siri.", isOn: model.gamesInSpotlight) { model.setGamesInSpotlight($0) }
         }
     }
 
     private var games: some View {
         Group {
-            ToggleRow("Trailers on the Games screen", "Silent, and only while Cellar is in front and no game is running. Uses internet and some battery.", isOn: Binding(get: { model.trailersEnabled }, set: { model.setTrailersEnabled($0) }))
-            ToggleRow("Hide Steam while playing", "Steam's window draws on the CPU, so keeping it closed saves CPU, memory and battery.", isOn: Binding(get: { model.hideSteamWhilePlaying }, set: { model.setHideSteamWhilePlaying($0) }))
-            ToggleRow("Offer fixes for games that won't start", "If a game closes right after starting, Cellar asks whether to try another graphics option.", isOn: Binding(get: { model.selfFixGames }, set: { model.setSelfFixGames($0) }))
+            ToggleRow("Trailers on the Games screen", "Silent, and only while Cellar is in front and no game is running. Uses internet and some battery.", isOn: model.trailersEnabled) { model.setTrailersEnabled($0) }
+            ToggleRow("Hide Steam while playing", "Steam's window draws on the CPU, so keeping it closed saves CPU, memory and battery.", isOn: model.hideSteamWhilePlaying) { model.setHideSteamWhilePlaying($0) }
+            ToggleRow("Offer fixes for games that won't start", "If a game closes right after starting, Cellar asks whether to try another graphics option.", isOn: model.selfFixGames) { model.setSelfFixGames($0) }
         }
     }
 
     private var clips: some View {
-        Group {
-            ToggleRow("Turn Clips on with every game", "Option+C saves a clip. Uses a little extra heat and battery, and stops when the game closes.", isOn: Binding(get: { model.autoClips }, set: { model.setAutoClips($0) }))
+        let seconds = model.clipSeconds
+        return Group {
+            ToggleRow("Turn Clips on with every game", "Option+C saves a clip. Uses a little extra heat and battery, and stops when the game closes.", isOn: model.autoClips) { model.setAutoClips($0) }
             SettingRow("Save the last", "How far back Option+C goes.") {
-                Picker("Save the last", selection: Binding(get: { model.clipSeconds }, set: { model.setClipSeconds($0) })) {
+                Picker("Save the last", selection: Binding(get: { seconds }, set: { model.setClipSeconds($0) })) {
                     Text("30 seconds").tag(30)
                     Text("1 minute").tag(60)
                     Text("2 minutes").tag(120)
@@ -133,13 +136,13 @@ struct SettingsScreen: View {
             SettingRow("Cellar \(appVersion)", "Cellar checks by itself, and game fixes arrive automatically.") {
                 Button("Check for Updates…") { model.checkForUpdates?() }.buttonStyle(GlassButtonStyle())
             }
-            ToggleRow("Get beta versions", "New versions arrive first, and are less tested.", isOn: Binding(get: { model.betaUpdates }, set: { model.setBetaUpdates($0) }))
+            ToggleRow("Get beta versions", "New versions arrive first, and are less tested.", isOn: model.betaUpdates) { model.setBetaUpdates($0) }
         }
     }
 
     private var advanced: some View {
         Group {
-            ToggleRow("FPS counter in games", "Apple's performance overlay. Each game can override this.", isOn: Binding(get: { model.showFPS }, set: { model.setShowFPS($0) }))
+            ToggleRow("FPS counter in games", "Apple's performance overlay. Each game can override this.", isOn: model.showFPS) { model.setShowFPS($0) }
             ForEach(PackKind.allCases, id: \.self) { kind in
                 SettingRow(kind.label, model.core.packs.installed(kind)?.version ?? "Not installed") { EmptyView() }
             }
@@ -187,22 +190,24 @@ struct SettingRow<Control: View>: View {
 struct ToggleRow: View {
     let title: String
     let detail: String
-    @Binding var isOn: Bool
+    let isOn: Bool
+    let set: (Bool) -> Void
 
-    init(_ title: String, _ detail: String, isOn: Binding<Bool>) {
+    init(_ title: String, _ detail: String, isOn: Bool, set: @escaping (Bool) -> Void) {
         self.title = title
         self.detail = detail
-        _isOn = isOn
+        self.isOn = isOn
+        self.set = set
     }
 
     var body: some View {
-        Button { isOn.toggle() } label: {
-            SettingRow(title, detail) {
-                Toggle(title, isOn: $isOn).toggleStyle(CellarToggleStyle()).allowsHitTesting(false)
-            }
-            .contentShape(Rectangle())
+        Button { set(!isOn) } label: {
+            SettingRow(title, detail) { SwitchShape(isOn: isOn) }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
     }
 }
 

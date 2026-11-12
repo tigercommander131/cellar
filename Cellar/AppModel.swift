@@ -70,6 +70,8 @@ final class AppModel {
     var settingsReturnTab: Tab = .games
     var focusedGameID: String?
     var settingsGame: Game?
+    /// Goes up every time a game's settings are saved, for screens that show what's in the file.
+    var settingsRevision = 0
     var friends: [SteamFriend] = []
     var friendsLoaded = false
     var toast: String?
@@ -90,6 +92,8 @@ final class AppModel {
     var connectionSwitchPending = false
     var checkingConnection = false
     var lastConnectionSwitch: Date?
+    /// Steam's log showed it can't sign in here even though the network check passes.
+    var steamBlockedUntil: Date?
     var pathMonitor: NWPathMonitor?
     var networkChangeTask: Task<Void, Never>?
     var connectionTask: Task<Void, Never>?
@@ -107,6 +111,7 @@ final class AppModel {
     var clipRecorder: ClipRecorder?
     var clipsRecording = false
     var clipsStarting = false
+    var clipsStopRequested = false
     var clipsNeedPermission = false
     /// Permission was asked for since launch. macOS may not apply it until Cellar reopens.
     var clipsAskedThisLaunch = false
@@ -159,6 +164,10 @@ final class AppModel {
     var checkForUpdates: (() -> Void)?
 
     private var refreshTask: Task<Void, Never>?
+    private var packUpdateTask: Task<Void, Never>?
+    private var launchTimeout: Task<Void, Never>?
+    /// New engine or graphics files are going in, so nothing may start until they're in place.
+    var installingPack = false
     private var friendsTask: Task<Void, Never>?
     private var started = false
     private var trimDemoWindow: NSWindow?
@@ -215,6 +224,8 @@ final class AppModel {
         guard !started else { return }
         started = true
         phase = core.isSetUp ? .ready : .needsSetup
+        let core = self.core
+        Task.detached { core.pruneLogs() }
         startRefreshing()
         startConnectionWatch()
         startMusicWatch()
@@ -312,6 +323,28 @@ final class AppModel {
         case "game":
             settingsGame = games.first { $0.id == parts[1] }
             content = AnyView(MainView())
+        case "flipgame":
+            // Flips a game's Retina switch by itself and back, to check the screen follows without a click.
+            guard let game = games.first(where: { $0.id == parts[1] }) else { return }
+            settingsGame = game
+            content = AnyView(MainView())
+            let was = core.profiles.profile(for: game.id).retina ?? false
+            Task {
+                try? await Task.sleep(for: .seconds(6))
+                setRetina(!was, for: game)
+                try? await Task.sleep(for: .seconds(6))
+                setRetina(was, for: game)
+            }
+        case "flipsettings":
+            // The same for the Settings screen, without saving anything.
+            tab = .settings
+            content = AnyView(MainView())
+            Task {
+                try? await Task.sleep(for: .seconds(6))
+                menuBarIcon.toggle()
+                try? await Task.sleep(for: .seconds(6))
+                menuBarIcon.toggle()
+            }
         case "overlay":
             overlayTab = OverlayTab(rawValue: parts[1]) ?? .friends
             content = AnyView(OverlayView())
@@ -372,19 +405,43 @@ final class AppModel {
 
     /// Checks for newer engine, graphics or game-fix packs in the background.
     func checkForPackUpdates() {
-        guard phase == .ready else { return }
+        // One at a time: coming back to Cellar mid-download mustn't start a second download.
+        guard phase == .ready, packUpdateTask == nil else { return }
         let core = self.core
         let manifestURL = self.manifestURL
-        Task.detached {
+        packUpdateTask = Task { [weak self] in
+            defer { self?.packUpdateTask = nil }
             guard let manifest = try? await PackManifest.load(from: manifestURL) else { return }
             let stale = manifest.packs.filter { !core.packs.isCurrent($0) }
-            guard !stale.isEmpty else { return }
-            // Engine and graphics updates need everything closed; game fixes don't.
-            let busy = core.isSteamRunning() || !core.runningProcesses().isEmpty
-            for entry in stale where entry.kind == .profiles || !busy {
-                try? await core.packs.install(entry)
+            guard !stale.isEmpty else {
+                // Everything is installed, so nothing in the download cache is still needed.
+                await Task.detached { core.packs.clearDownloads() }.value
+                return
+            }
+            for entry in stale {
+                if entry.kind == .profiles {
+                    try? await core.packs.install(entry)
+                    continue
+                }
+                // Engine and graphics updates need everything closed. The download takes a while, so that's
+                // checked again once it's here, and nothing starts while the new files go in.
+                guard let self, await nothingIsRunning(), let archive = try? await core.packs.download(entry),
+                      await nothingIsRunning() else { continue }
+                installingPack = true
+                await Task.detached {
+                    guard (try? core.packs.installArchive(archive, entry: entry)) != nil else { return }
+                    core.packs.removeDownload(archive)
+                }.value
+                installingPack = false
             }
         }
+    }
+
+    private func nothingIsRunning() async -> Bool {
+        let core = self.core
+        guard launching == nil, !switchingConnection, !installingPack else { return false }
+        let busy = await Task.detached { core.isSteamRunning() || !core.runningProcesses().isEmpty }.value
+        return !busy && launching == nil && !switchingConnection
     }
 
     // MARK: Actions
@@ -395,6 +452,8 @@ final class AppModel {
 
     /// Called when the "blocked" question is answered, or there wasn't one.
     func play(_ game: Game, knowingItsBlocked: Bool = false) {
+        // A second press while it's starting (or a held Return key) would start it twice.
+        guard launching == nil, !game.isRunning else { return }
         if !knowingItsBlocked, verdicts[game.id]?.verdict == .blocked {
             blockedPromptGame = game
             return
@@ -406,6 +465,24 @@ final class AppModel {
             return
         }
         launch(game)
+    }
+
+    /// Play would stop to ask something first. The question shows in the main window, so it has to be open.
+    func playWillAsk(_ game: Game) -> Bool {
+        if verdicts[game.id]?.verdict == .blocked { return true }
+        return HostCheck.isOnBattery && game.profile.backend.supportsFrameCap && game.profile.preset != .battery
+            && core.loadState().skipBatteryPrompt != true
+    }
+
+    /// Shows "Starting…" for a game, and gives up on that after 90 seconds if it never appears.
+    func markLaunching(_ id: String) {
+        launching = id
+        launchTimeout?.cancel()
+        launchTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(90))
+            guard !Task.isCancelled, let self, launching == id else { return }
+            launching = nil
+        }
     }
 
     func answerBatteryPrompt(usePreset: Bool, dontAskAgain: Bool = false) {
@@ -423,15 +500,11 @@ final class AppModel {
         if let need = game.profile.minRAMGB, host.memoryGB < need {
             alert = "\(game.name) wants \(need) GB of memory and this Mac has \(host.memoryGB) GB. It may stutter or close."
         }
-        launching = game.id
+        markLaunching(game.id)
         stoppedByUser = false
         lastLaunch[game.id] = Date()
         lastLaunchPreset[game.id] = preset
         startSteam(.play(appID: game.id, args: []), preset: preset) { [weak self] in self?.launching = nil }
-        Task {
-            try? await Task.sleep(for: .seconds(90))
-            if launching == game.id { launching = nil }
-        }
     }
 
     // MARK: Friends
@@ -486,7 +559,7 @@ final class AppModel {
             return
         }
         focusedGameID = appID
-        launching = appID
+        markLaunching(appID)
         toast = "Joining \(friend.name) in \(game.name)…"
         startSteam(.join(appID: appID, link: link)) { [weak self] in
             self?.launching = nil
@@ -556,7 +629,7 @@ final class AppModel {
     func addToDock(_ game: Game) {
         Task {
             do {
-                let app = try await ShortcutMaker.create(for: game)
+                let app = try await ShortcutMaker.create(for: game, pinned: true)
                 NSWorkspace.shared.activateFileViewerSelecting([app])
                 toast = "\(game.name) is in Applications › Cellar Games. Drag it to your Dock."
             } catch {
@@ -570,6 +643,13 @@ final class AppModel {
         var override = core.profiles.override(game.id) ?? GameProfile(appId: game.id)
         change(&override)
         saveOverride(override, for: game)
+    }
+
+    /// Off has to be written down when the game's built-in settings say on, or it would come straight back.
+    func setRetina(_ on: Bool, for game: Game) {
+        let builtInOn = core.profiles.builtIn(game.id)?.retina == true
+        updateSettings(for: game) { $0.retina = on ? true : (builtInOn ? false : nil) }
+        if game.isRunning { toast = "Retina \(on ? "on" : "off") the next time \(game.name) starts." }
     }
 
     func setShowFPS(_ on: Bool) {
@@ -586,6 +666,7 @@ final class AppModel {
         } else {
             try? core.profiles.saveOverride(override)
         }
+        settingsRevision += 1
         Task { await refresh() }
         if settingsGame?.id == game.id { settingsGame = games.first { $0.id == game.id } }
     }

@@ -128,25 +128,46 @@ extension NSImage {
 }
 
 /// A switch that reads clearly on Cellar's dark screens: white when on.
-struct CellarToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Button { configuration.isOn.toggle() } label: {
-            // The label is only for VoiceOver: each row already says what the switch does.
-            Capsule()
-                .fill(configuration.isOn ? Color.white : Color.white.opacity(0.18))
-                .frame(width: 42, height: 24)
-                .overlay(alignment: configuration.isOn ? .trailing : .leading) {
-                    Circle()
-                        .fill(configuration.isOn ? Color.black : Color.white)
-                        .frame(width: 18, height: 18)
-                        .padding(3)
-                }
-                .animation(.snappy(duration: 0.16), value: configuration.isOn)
-                .contentShape(Rectangle())
-                .accessibilityLabel(content: { _ in configuration.label })
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(configuration.isOn ? [.isSelected] : [])
+///
+/// It takes a plain value, not a Binding. Whoever builds it reads that value in their own body, which
+/// is what makes the screen redraw when it changes. With a Binding made from closures the read was
+/// hidden, and switches only caught up when you left the screen and came back.
+struct CellarSwitch: View {
+    let title: String
+    let isOn: Bool
+    let set: (Bool) -> Void
+
+    init(_ title: String, isOn: Bool, set: @escaping (Bool) -> Void) {
+        self.title = title
+        self.isOn = isOn
+        self.set = set
+    }
+
+    var body: some View {
+        Button { set(!isOn) } label: { SwitchShape(isOn: isOn) }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(isOn ? "On" : "Off")
+            .accessibilityAddTraits(.isToggle)
+    }
+}
+
+/// The switch's picture alone, for rows where the whole row is the button.
+struct SwitchShape: View {
+    let isOn: Bool
+
+    var body: some View {
+        Capsule()
+            .fill(isOn ? Color.white : Color.white.opacity(0.18))
+            .frame(width: 42, height: 24)
+            .overlay(alignment: isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(isOn ? Color.black : Color.white)
+                    .frame(width: 18, height: 18)
+                    .padding(3)
+            }
+            .animation(.snappy(duration: 0.16), value: isOn)
+            .contentShape(Rectangle())
     }
 }
 

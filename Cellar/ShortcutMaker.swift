@@ -8,7 +8,8 @@ enum ShortcutMaker {
         FileManager.default.homeDirectoryForCurrentUser.appending(path: "Applications/Cellar Games", directoryHint: .isDirectory)
     }
 
-    static func create(for game: Game) async throws -> URL {
+    /// `pinned` marks one the user asked for with Add to Dock, which stays whatever the Spotlight setting says.
+    static func create(for game: Game, pinned: Bool = false) async throws -> URL {
         let fm = FileManager.default
         let safeName = game.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
         let app = folder.appending(path: "\(safeName).app", directoryHint: .isDirectory)
@@ -26,6 +27,7 @@ enum ShortcutMaker {
             "LSApplicationCategoryType": "public.app-category.games",
             // Opens Cellar and quits; it never needs a Dock icon of its own while running.
             "LSUIElement": true,
+            pinnedKey: pinned,
         ]
         let plist = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try plist.write(to: contents.appending(path: "Info.plist"))
@@ -41,6 +43,7 @@ enum ShortcutMaker {
     }
 
     static let bundlePrefix = "com.tigercommander131.cellar.shortcut."
+    static let pinnedKey = "CellarPinned"
 
     /// Keeps the folder matching the installed games. Spotlight indexes apps in `~/Applications`, so
     /// this is what makes a game findable by name. Leaves anything that isn't one of ours alone.
@@ -49,11 +52,13 @@ enum ShortcutMaker {
         var existing: Set<String> = []
         let fm = FileManager.default
         for app in (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] where app.pathExtension == "app" {
-            guard let id = Bundle(url: app)?.bundleIdentifier, id.hasPrefix(bundlePrefix) else { continue }
+            guard let bundle = Bundle(url: app), let id = bundle.bundleIdentifier, id.hasPrefix(bundlePrefix) else { continue }
             let appID = String(id.dropFirst(bundlePrefix.count))
-            if wanted[appID] == nil {
+            // One sitting in the Dock would turn into a question mark.
+            let pinned = bundle.object(forInfoDictionaryKey: pinnedKey) as? Bool == true
+            if wanted[appID] == nil, !pinned {
                 try? fm.removeItem(at: app)
-            } else {
+            } else if wanted[appID] != nil {
                 existing.insert(appID)
             }
         }

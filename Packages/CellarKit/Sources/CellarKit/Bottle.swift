@@ -111,14 +111,14 @@ public struct Bottle: Sendable {
         var info = self.info ?? BottleInfo(name: name)
 
         if !exists {
-            try wine.run(["wineboot", "--init"], config: config, log: log, timeout: 300)
+            try wine.run(["wineboot", "--init"], config: config, log: log, timeout: 300, stopBottleOnTimeout: true)
             // wineboot can return before the registry is flushed to disk.
             let deadline = Date().addingTimeInterval(60)
             while !exists, Date() < deadline { Thread.sleep(forTimeInterval: 0.5) }
             guard exists else { throw CellarError("Wine didn't finish creating the bottle. See \(log.path).") }
         }
         if info.setupVersion < Self.setupVersion {
-            try wine.run(["winecfg", "-v", info.windowsVersion], config: config, log: log, timeout: 120)
+            try wine.run(["winecfg", "-v", info.windowsVersion], config: config, log: log, timeout: 120, stopBottleOnTimeout: true)
             try replaceHomeLinks()
             try importRegistry(defaultRegistry(), engine: engine, log: log)
             info.setupVersion = Self.setupVersion

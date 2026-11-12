@@ -217,9 +217,12 @@ public final class ClipRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @un
     /// Writes what's held to an MP4 at `url`. Recording carries on underneath.
     public func save(to url: URL) async throws {
         let snapshot = queue.sync { (UncheckedBox(video), UncheckedBox(audio)) }
+        // A still screen sends no new pictures while the sound carries on, so "now" is the newer of the two.
+        // Counting back from the last picture alone gave a clip that started silent and ran long.
+        let newestSound = snapshot.1.value.last.map { CMSampleBufferGetPresentationTimeStamp($0).seconds }
         let span = ClipTimeline.span(of: snapshot.0.value.map {
             ClipTimeline.Frame(time: CMSampleBufferGetPresentationTimeStamp($0).seconds, isKeyframe: Self.isKeyframe($0))
-        }, seconds: options.seconds)
+        }, seconds: options.seconds, until: newestSound)
         guard let span else { throw CellarError("Nothing to save yet. Give it a few more seconds.") }
         let frames = Array(snapshot.0.value[span])
         let start = CMSampleBufferGetPresentationTimeStamp(frames[0])
@@ -259,12 +262,19 @@ public final class ClipRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @un
 
         guard writer.startWriting() else { throw writer.error ?? CellarError("Couldn't start writing the clip.") }
         writer.startSession(atSourceTime: start)
-        try await append(video: video, to: videoInput, audio: audio, to: audioInput, writer: writer)
-        let box = UncheckedBox(writer)
-        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            box.value.finishWriting { done.resume() }
+        do {
+            try await append(video: video, to: videoInput, audio: audio, to: audioInput, writer: writer)
+            let box = UncheckedBox(writer)
+            await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                box.value.finishWriting { done.resume() }
+            }
+            if writer.status != .completed { throw writer.error ?? CellarError("Couldn't finish writing the clip.") }
+        } catch {
+            // A full disk, say. Half a file would show in the library as a clip that can't be read.
+            if writer.status == .writing { writer.cancelWriting() }
+            try? FileManager.default.removeItem(at: url)
+            throw error
         }
-        if writer.status != .completed { throw writer.error ?? CellarError("Couldn't finish writing the clip.") }
     }
 
     /// Feeds both tracks together: the writer stops accepting one until it has enough of the other.
@@ -353,9 +363,10 @@ public enum ClipTimeline {
 
     /// From the last keyframe at or before `seconds` ago, through the newest frame. Video can only be
     /// decoded from a keyframe, so a clip may run a little long but never starts on a broken picture.
-    public static func span(of frames: [Frame], seconds: Double) -> Range<Int>? {
+    /// `until` is the newest sound, when that's later than the newest frame.
+    public static func span(of frames: [Frame], seconds: Double, until: Double? = nil) -> Range<Int>? {
         guard let newest = frames.last?.time, let firstKey = frames.firstIndex(where: \.isKeyframe) else { return nil }
-        let wanted = newest - seconds
+        let wanted = max(newest, until ?? newest) - seconds
         let start = frames.indices.last { frames[$0].isKeyframe && frames[$0].time <= wanted } ?? firstKey
         return start..<frames.count
     }
@@ -560,7 +571,9 @@ public enum ClipEditor {
         var videoDone = false
         var audioDone = audioOut == nil
         var nextFrame = 0.0
-        while !videoDone || !audioDone {
+        var stalledSince = Date()
+        // A writer that has failed (a full disk) never becomes ready again, so this would wait forever.
+        while !videoDone || !audioDone, writer.status == .writing, reader.status != .failed {
             var moved = false
             if !videoDone, videoIn.isReadyForMoreMediaData {
                 moved = true
@@ -584,15 +597,22 @@ public enum ClipEditor {
                     audioDone = true
                 }
             }
-            if !moved { try await Task.sleep(for: .milliseconds(3)) }
+            if moved {
+                stalledSince = Date()
+            } else {
+                if Date().timeIntervalSince(stalledSince) > 30 { break }
+                try await Task.sleep(for: .milliseconds(3))
+            }
         }
-        if reader.status == .failed || writer.status == .failed {
+        if reader.status == .failed || writer.status == .failed || !videoDone || !audioDone {
             reader.cancelReading()
             writer.cancelWriting()
+            try? FileManager.default.removeItem(at: output)
             throw writer.error ?? reader.error ?? CellarError("Couldn't make a small copy of this clip.")
         }
         await writer.finishWriting()
         if writer.status != .completed {
+            try? FileManager.default.removeItem(at: output)
             throw writer.error ?? CellarError("Couldn't make a small copy of this clip.")
         }
     }

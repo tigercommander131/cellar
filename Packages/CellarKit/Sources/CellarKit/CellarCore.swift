@@ -261,10 +261,12 @@ public struct CellarCore: Sendable {
         let engine = try runtimes.prepare(config.backend)
         let fp = fingerprint(config, engine: engine)
         var state = loadState()
+        // A game uses its own choice, never the last game's. Opening Steam keeps what's there.
+        let retina = startsGame ? profile?.retina ?? false : state.retina ?? false
 
         if isSteamRunning() {
             // Registry changes wait for Steam to close, and each game reads this one when it starts.
-            if state.steamSession?.fingerprint != fp || state.floatSettingApplied != true, startsGame {
+            if state.steamSession?.fingerprint != fp || state.floatSettingApplied != true || retina != (state.retina ?? false), startsGame {
                 let games = runningGames()
                 guard games.isEmpty else {
                     throw CellarError("Close \(games.map(\.windowsName).joined(separator: ", ")) first: Steam has to restart with this game's settings.")
@@ -275,7 +277,6 @@ public struct CellarCore: Sendable {
 
         try steamBottle.prepare(for: config.backend)
         var values = profile?.registry ?? []
-        let retina = profile?.retina ?? state.retina ?? false
         if retina != (state.retina ?? false) { values.append(.retina(retina)) }
         if state.floatSettingApplied != true { values.append(.onlyFloatWhenActive) }
         if !isSteamRunning(), !values.isEmpty {

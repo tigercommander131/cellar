@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       revision:
-        description: "Engine revision (bump when patches or build flags change)"
+        description: "Engine revision (a new number every time: a published one is never replaced)"
         required: true
-        default: "1"
 
 permissions:
   contents: write
@@ -18,9 +17,20 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 300
     env:
-      ENGINE_REVISION: ${{ inputs.revision || '1' }}
+      ENGINE_REVISION: ${{ inputs.revision }}
     steps:
       - uses: actions/checkout@v4
+
+      # A rebuild never comes out byte for byte the same, and packs.json holds the published one's
+      # checksum, so replacing it would break setup for everyone until packs.json caught up.
+      - name: Refuse to replace a published engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "engine-cx26.3.0-${ENGINE_REVISION}" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Engine r${ENGINE_REVISION} is already published. Use the next revision number." >&2
+            exit 1
+          fi
 
       - name: Work folder
         run: echo "WORK=$RUNNER_TEMP/work" >> "$GITHUB_ENV"
@@ -56,10 +66,6 @@ jobs:
           TAG="engine-cx26.3.0-${ENGINE_REVISION}"
           tar -czf "$WORK/dist/${NAME}-patches.tar.gz" engine
           gh release create "$TAG" --latest=false --title "Engine CX 26.3.0 r${ENGINE_REVISION}" --notes-file engine/RELEASE-NOTES.md \
-            "$WORK/dist/${NAME}.tar.xz" "$WORK/dist/${NAME}.tar.xz.sha256" \
-            "$WORK/dist/${NAME}-patches.tar.gz" \
-            "$WORK/downloads/crossover-sources-26.3.0.tar.gz" || \
-          gh release upload "$TAG" --clobber \
             "$WORK/dist/${NAME}.tar.xz" "$WORK/dist/${NAME}.tar.xz.sha256" \
             "$WORK/dist/${NAME}-patches.tar.gz" \
             "$WORK/downloads/crossover-sources-26.3.0.tar.gz"

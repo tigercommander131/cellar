@@ -24,6 +24,8 @@ public actor ArtworkService {
     let cacheFile: URL
     var cache: [String: SteamArtwork] = [:]
     var loaded = false
+    /// When the store last didn't answer, so the next try waits.
+    var lastFailure: Date?
 
     static let cdn = "https://shared.akamai.steamstatic.com/store_item_assets/"
 
@@ -36,10 +38,16 @@ public actor ArtworkService {
     public func artwork(for appIds: [String]) async -> [String: SteamArtwork] {
         loadIfNeeded()
         let missing = appIds.filter { cache[$0] == nil }
-        if !missing.isEmpty {
+        // The library asks every few seconds. On a network that swallows the request, each ask would
+        // otherwise hold the whole refresh until it times out.
+        let waiting = lastFailure.map { Date().timeIntervalSince($0) < 60 } ?? false
+        if !missing.isEmpty, !waiting {
             for chunk in stride(from: 0, to: missing.count, by: 50).map({ Array(missing[$0..<min($0 + 50, missing.count)]) }) {
                 // No answer (school Wi-Fi, offline): use a guess for now, but ask again next time.
-                guard let found = try? await fetch(chunk) else { continue }
+                guard let found = try? await fetch(chunk) else {
+                    lastFailure = Date()
+                    break
+                }
                 for id in chunk { cache[id] = found[id] ?? Self.fallback(id) }
             }
             save()
@@ -62,7 +70,9 @@ public actor ArtworkService {
         let json = String(decoding: try JSONSerialization.data(withJSONObject: request), as: UTF8.self)
         var components = URLComponents(string: "https://api.steampowered.com/IStoreBrowseService/GetItems/v1/")!
         components.queryItems = [URLQueryItem(name: "input_json", value: json)]
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
+        var urlRequest = URLRequest(url: components.url!)
+        urlRequest.timeoutInterval = 6
+        let (data, _) = try await URLSession.shared.data(for: urlRequest)
 
         struct Response: Decodable {
             struct Body: Decodable { var store_items: [Item]? }

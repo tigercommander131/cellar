@@ -7,8 +7,20 @@
 # Code signing: the certificate from scripts/make-signing-cert.sh, so permissions survive updates.
 set -euo pipefail
 
-VERSION="${1:?usage: scripts/release-app.sh <version> [build]}"
-BUILD="${2:-$(date +%Y%m%d%H)}"
+# --no-upload counts wherever it's typed: read as the build number, it used to publish to everyone.
+UPLOAD=1
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --no-upload) UPLOAD=0 ;;
+    -*) echo "Unknown option $arg" >&2; exit 1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+VERSION="${ARGS[0]:?usage: scripts/release-app.sh <version> [build] [--no-upload]}"
+BUILD="${ARGS[1]:-$(date +%Y%m%d%H)}"
+[[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || { echo "Version must look like 3.0.1, not '$VERSION'." >&2; exit 1; }
+[[ "$BUILD" =~ ^[0-9]+$ ]] || { echo "Build number must be a number, not '$BUILD'." >&2; exit 1; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="${REPO:-tigercommander131/cellar}"
 KEY="${SPARKLE_KEY_FILE:-$ROOT/.work/keys/sparkle_private.key}"
@@ -73,7 +85,7 @@ $KEEP
 XML
 echo "Built Cellar $VERSION ($BUILD), $(du -h "$OUT/Cellar.zip" | cut -f1)"
 
-[ "${3:-}" = "--no-upload" ] && exit 0
+[ "$UPLOAD" = 1 ] || exit 0
 if [ -n "$CHANNEL" ]; then
   gh release create "v$VERSION" -R "$REPO" --title "Cellar $VERSION ($CHANNEL)" --notes-file "$ROOT/docs/RELEASE-NOTES.md" --prerelease "$OUT/Cellar.zip"
 else

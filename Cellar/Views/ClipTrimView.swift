@@ -182,7 +182,10 @@ struct ClipEditorView: View {
         }
         let asset = AVURLAsset(url: clip.url)
         player.replaceCurrentItem(with: AVPlayerItem(asset: asset))
-        guard let length = try? await asset.load(.duration).seconds, length > 0 else {
+        let length = try? await asset.load(.duration).seconds
+        // Stepping quickly through clips: this one has been left already, so it mustn't write over the next.
+        guard !Task.isCancelled else { return }
+        guard let length, length > 0 else {
             failure = "Couldn't read this clip."
             return
         }
@@ -194,6 +197,7 @@ struct ClipEditorView: View {
         var images: [CGImage] = []
         for index in 0..<12 {
             if let image = try? await generator.image(at: seconds(length * (Double(index) + 0.5) / 12)).image { images.append(image) }
+            guard !Task.isCancelled else { return }
         }
         frames = images
     }
@@ -310,10 +314,27 @@ struct ClipEditorView: View {
             return
         }
         do {
-            let source = try await currentFile()
             busy = "Making a small copy…"
             defer { busy = nil }
             player.pause()
+            // A trim is only a step on the way here, so it's cut to a temporary file, not into the library.
+            var source = clip.url
+            var cut: URL?
+            if isVideo, isTrimmed {
+                let file = FileManager.default.temporaryDirectory.appending(path: "cellar-trim-\(UUID().uuidString).mp4")
+                try await ClipEditor.trim(clip.url, from: start, to: end, saveTo: file)
+                cut = file
+                source = file
+            }
+            defer { if let cut { try? FileManager.default.removeItem(at: cut) } }
+            // A short trim is often small enough already: keep its full quality.
+            if let cut, let bytes = try? cut.resourceValues(forKeys: [.fileSizeKey]).fileSize, bytes <= ClipEditor.smallLimit {
+                let output = ClipEditor.copyURL(for: clip.url, suffix: "trimmed")
+                try FileManager.default.moveItem(at: cut, to: output)
+                show(output)
+                model.tell("Your trim is already under 10 MB, \(Int64(bytes).formattedBytes). Copy or Share it.", systemImage: "checkmark")
+                return
+            }
             let output = ClipEditor.copyURL(for: clip.url, suffix: "small")
             let size = try await ClipEditor.makeSmall(source, saveTo: output)
             show(output)

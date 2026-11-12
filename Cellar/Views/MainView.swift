@@ -523,6 +523,7 @@ struct LibraryCard: View {
         .contextMenu {
             Button("Play") { model.play(game) }
             Button("Game Settings…") { model.settingsGame = game }
+            Toggle("Retina", isOn: Binding(get: { game.profile.retina ?? false }, set: { model.setRetina($0, for: game) }))
             Button("Add to Dock") { model.addToDock(game) }
             Button("Show in Finder") { model.showInFinder(game) }
             Button("Store Page") { model.openStorePage(game) }

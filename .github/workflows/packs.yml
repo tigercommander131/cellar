@@ -10,6 +10,11 @@ on:
 permissions:
   contents: write
 
+# One at a time, in order: two quick pushes mustn't finish the wrong way round and leave the older one live.
+concurrency:
+  group: packs
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest

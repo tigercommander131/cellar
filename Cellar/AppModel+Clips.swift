@@ -20,8 +20,16 @@ extension AppModel {
         (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber).map { CGDirectDisplayID($0.uint32Value) }
     }
 
+    /// How to reach the overlay's Clips tile, for a message over the game.
+    private var clipsTileHint: String {
+        let number = (OverlayTab.allCases.firstIndex(of: .clips) ?? 1) + 1
+        if OverlayHotkey.current == .off { return "Open the overlay from Cellar's menu bar icon, then press \(number)." }
+        return "Press \(OverlayHotkey.current.label), then \(number)."
+    }
+
     private func startClips() {
         guard clipRecorder == nil, !clipsStarting else { return }
+        clipsStopRequested = false
         // Asking ScreenCaptureKit would pop macOS's question up underneath the overlay.
         guard CGPreflightScreenCaptureAccess() else { return askForScreenRecording() }
         clipsNeedPermission = false
@@ -41,6 +49,12 @@ extension AppModel {
                         self?.clipError = error.map { "Recording stopped: \($0.localizedDescription)" }
                     }
                 }
+                // The game closed while recording was still starting: don't leave it recording nothing.
+                if clipsStopRequested {
+                    clipsStopRequested = false
+                    await recorder.stop()
+                    return
+                }
                 clipRecorder = recorder
                 clipsRecording = true
                 clipsNeedPermission = false
@@ -54,7 +68,10 @@ extension AppModel {
     }
 
     private func stopClips() {
-        guard let recorder = clipRecorder else { return }
+        guard let recorder = clipRecorder else {
+            if clipsStarting { clipsStopRequested = true }
+            return
+        }
         clipRecorder = nil
         clipsRecording = false
         if let frontmostObserver { NSWorkspace.shared.notificationCenter.removeObserver(frontmostObserver) }
@@ -144,7 +161,7 @@ extension AppModel {
     func saveClip() {
         guard let recorder = clipRecorder else {
             let reason = CGPreflightScreenCaptureAccess() ? "Clips are off for this game." : "Clips need permission."
-            overlay.showHUD("\(reason) Press \(OverlayHotkey.current.label), then 3.", systemImage: "record.circle")
+            overlay.showHUD("\(reason) \(clipsTileHint)", systemImage: "record.circle")
             return
         }
         guard !savingClip else { return }
@@ -192,7 +209,7 @@ extension AppModel {
         guard autoClips else { return }
         guard CGPreflightScreenCaptureAccess() else {
             clipsNeedPermission = true
-            overlay.showHUD("Clips need permission. Press \(OverlayHotkey.current.label), then 3.", systemImage: "lock.fill")
+            overlay.showHUD("Clips need permission. \(clipsTileHint)", systemImage: "lock.fill")
             return
         }
         setClipsRecording(true)

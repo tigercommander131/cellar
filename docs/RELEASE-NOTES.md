@@ -1,3 +1,21 @@
+**Cellar 3.0.1**
+
+Fixes, mostly for things that could spoil a session.
+
+- **Cellar no longer closes your game by itself.** A slow friends-list check, or the Mac sleeping at the wrong moment, could shut Steam and the game.
+- **Steam stays online after your Mac wakes up,** instead of dropping offline on good Wi-Fi.
+- **Updates wait for you.** A new engine never installs while Steam or a game is starting or running.
+- **"Starting…" can't get stuck,** and pressing Play twice doesn't start a game twice.
+- **Switches flip when you click them.** In Settings and a game's settings they used to look stuck until you left the screen and came back.
+- **Retina is easier to reach,** right on a game's settings screen and in its right-click menu. It also turns off again, and one game's choice no longer carries over to the others.
+- **Play from the menu bar** opens Cellar when it has a question for you, instead of doing nothing.
+- **Dock shortcuts stay put** with "Find games in Spotlight" off.
+- **Clips:** closing the overlay stops a clip that's playing, Make Small Copy no longer leaves an extra file or hangs, a save that fails leaves nothing broken behind, and clips taken on a still screen keep their sound.
+- **Will It Run** keeps what it knows when a network blocks Steam.
+- **Less clutter:** old downloads and logs are cleared by themselves.
+
+---
+
 **Cellar 3.0**
 
 A new look for the whole app.
