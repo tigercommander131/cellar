@@ -23,6 +23,7 @@ extension AppModel {
     /// How to reach the overlay's Clips tile, for a message over the game.
     private var clipsTileHint: String {
         let number = (OverlayTab.allCases.firstIndex(of: .clips) ?? 1) + 1
+        if inGameOverlay != .cellar { return "Open Cellar and look in Settings, under Clips and overlay." }
         if OverlayHotkey.current == .off { return "Open the overlay from Cellar's menu bar icon, then press \(number)." }
         return "Press \(OverlayHotkey.current.label), then \(number)."
     }

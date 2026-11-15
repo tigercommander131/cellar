@@ -59,11 +59,13 @@ struct MenuBarPanel: View {
                     }
                 }
                 Spacer(minLength: 4)
-                Button("Overlay") {
-                    dismiss()
-                    model.overlay.show()
+                if model.inGameOverlay == .cellar, !game.app.isNative {
+                    Button("Overlay") {
+                        dismiss()
+                        model.overlay.show()
+                    }
+                    .buttonStyle(GlassButtonStyle())
                 }
-                .buttonStyle(GlassButtonStyle())
             }
         }
     }

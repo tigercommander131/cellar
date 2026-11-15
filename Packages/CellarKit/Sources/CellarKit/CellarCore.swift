@@ -39,6 +39,11 @@ public struct CellarState: Codable, Sendable, Equatable {
     public var menuBarIcon: Bool?
     /// Get beta versions of Cellar (nil means off).
     public var betaUpdates: Bool?
+    /// Games to run as their Windows version in Cellar even though the Mac version is installed too.
+    /// Mods made for Windows only work in that one.
+    public var preferWindows: [String]?
+    /// Which overlay Shift+Tab opens in a game (nil means Steam's).
+    public var inGameOverlay: InGameOverlay?
 
     public struct GameStats: Codable, Sendable, Equatable {
         public var playedSeconds: Double = 0
@@ -68,6 +73,11 @@ public struct CellarState: Codable, Sendable, Equatable {
 }
 
 /// The front door for the app and the CLI: setup, Steam and games.
+/// The overlay a game gets. Steam's is the default: its chat and invites are the ones friends use.
+public enum InGameOverlay: String, Codable, Sendable, CaseIterable {
+    case steam, cellar, off
+}
+
 public struct CellarCore: Sendable {
     public let paths: CellarPaths
     public static let steamBottleName = "steam"
@@ -79,6 +89,7 @@ public struct CellarCore: Sendable {
     public var runtimes: RuntimeBuilder { RuntimeBuilder(paths: paths) }
     public var steamBottle: Bottle { Bottle(paths: paths, name: Self.steamBottleName) }
     public var steam: Steam { Steam(bottle: steamBottle) }
+    public var macSteam: MacSteam { MacSteam() }
 
     // MARK: State
 
@@ -211,7 +222,8 @@ public struct CellarCore: Sendable {
         // Not read by Wine; part of the settings fingerprint so Steam restarts when Retina changes.
         if profile.retina == true { config.extraEnvironment["CELLAR_RETINA"] = "1" }
         config.dllOverrides = profile.dllOverrides ?? [:]
-        if profile.steamOverlay == true {
+        // A game's own choice wins; otherwise Steam's overlay is on when it's the one picked in Settings.
+        if profile.steamOverlay ?? ((loadState().inGameOverlay ?? .steam) == .steam) {
             config.dllOverrides["gameoverlayrenderer,gameoverlayrenderer64"] = "n,b"
         }
         // Without a preset or an explicit cap, nothing changes.
@@ -234,6 +246,10 @@ public struct CellarCore: Sendable {
     /// Opens Steam, plays or installs a game. Restarts Steam if it runs with the wrong settings.
     /// `preset` applies to this launch only (the Battery prompt uses it).
     public func launchSteam(_ mode: Steam.Mode, preset: GamePreset? = nil) throws {
+        try launchSteam(mode, preset: preset, afterRestart: false)
+    }
+
+    private func launchSteam(_ mode: Steam.Mode, preset: GamePreset?, afterRestart: Bool) throws {
         guard steam.isInstalled else { throw CellarError("Steam isn't installed yet. Run setup first.") }
         let appId: String? = {
             switch mode {
@@ -296,7 +312,15 @@ public struct CellarCore: Sendable {
         }
         if startsGame, let appId { state.lastPlayed = (state.lastPlayed ?? [:]).merging([appId: Date()]) { $1 } }
         try saveState(state)
+        // With Steam already running, this only hands it a command, and a Steam that has stopped
+        // listening drops it without a word.
+        let mark = !afterRestart && isSteamRunning() ? steam.commandLogMark() : nil
         _ = try wine.start(finalArgs, config: config, log: log("steam"), workingDirectory: steam.steamDir)
+        if let mark, !steam.heardCommand(since: mark), runningGames().isEmpty {
+            // Nothing is running that a restart would close, so start Steam again and ask once more.
+            stopSteam(engine: engine)
+            try launchSteam(mode, preset: preset, afterRestart: true)
+        }
     }
 
     /// Switches Steam's offline mode. Steam has to restart for it, so this refuses while a game runs.

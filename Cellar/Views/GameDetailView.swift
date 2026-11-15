@@ -136,9 +136,10 @@ struct GameScreen: View {
                             }
                             .labelsHidden().fixedSize()
                         }
-                        SettingRow("Steam overlay", "Experimental, and can crash some games. Only needed for a game's own Invite button.") {
-                            CellarSwitch("Steam overlay", isOn: current.steamOverlay ?? false) { on in
-                                model.updateSettings(for: game) { $0.steamOverlay = on ? true : nil }
+                        SettingRow("Steam overlay", "Steam's own Shift+Tab overlay. Turn it off here if this game won't start or draws wrongly.") {
+                            // Follows the overlay picked in Settings unless this game says otherwise.
+                            CellarSwitch("Steam overlay", isOn: current.steamOverlay ?? (model.inGameOverlay == .steam)) { on in
+                                model.updateSettings(for: game) { $0.steamOverlay = on == (model.inGameOverlay == .steam) ? nil : on }
                             }
                         }
                         SettingRow("Launch options", "For example, -novid") {

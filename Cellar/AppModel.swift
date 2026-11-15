@@ -50,6 +50,8 @@ final class AppModel {
     var setupError: String?
 
     var games: [Game] = []
+    /// Games that are in both the Mac's Steam and Cellar's Windows Steam, so there's a choice of which to run.
+    var gamesBothWays: Set<String> = []
     var steamRunning = false
     var steamUser: String?
     var steamOffline = false
@@ -98,6 +100,9 @@ final class AppModel {
     var networkChangeTask: Task<Void, Never>?
     var connectionTask: Task<Void, Never>?
     var logonWatch: Task<Void, Never>?
+    /// The app that was in front before the current one, and when a click last opened Steam's window.
+    var lastDeactivatedPID: pid_t?
+    var steamWindowOpened: Date?
 
     // Sessions and live stats (AppModel+Session)
     var sessionStarts: [String: Date] = [:]
@@ -157,6 +162,8 @@ final class AppModel {
     var stoppedByUser = false
 
     var menuBarIcon: Bool
+    /// Which overlay Shift+Tab opens in a game.
+    var inGameOverlay: InGameOverlay
     var betaUpdates: Bool
     var trailersEnabled: Bool
     let trailers: TrailerService
@@ -192,6 +199,7 @@ final class AppModel {
         gamesInSpotlight = state.gamesInSpotlight ?? true
         selfFixGames = state.selfFixGames ?? true
         menuBarIcon = state.menuBarIcon ?? true
+        inGameOverlay = state.inGameOverlay ?? .steam
         betaUpdates = state.betaUpdates ?? false
         trailersEnabled = state.trailers ?? true
         overlay.model = self
@@ -217,6 +225,9 @@ final class AppModel {
     var friendsOnline: [SteamFriend] { friends.filter { $0.state == .online || $0.state == .away } }
     var downloadingGames: [Game] { games.filter { !$0.app.isInstalled || $0.app.isUpdating } }
     var runningGame: Game? { games.first { $0.isRunning } }
+    /// The running game that Cellar's engine is running, which its overlay, Clips and Force Quit apply to.
+    var runningWineGame: Game? { games.first { $0.isRunning && !$0.app.isNative } }
+    func isNative(_ id: String?) -> Bool { games.first { $0.id == id }?.app.isNative == true }
 
     // MARK: Lifecycle
 
@@ -228,6 +239,7 @@ final class AppModel {
         Task.detached { core.pruneLogs() }
         startRefreshing()
         startConnectionWatch()
+        watchSteamDockIcon()
         startMusicWatch()
         refreshClips()
         // Shows a screen in a plain window behind everything, to check it without covering the display.
@@ -259,12 +271,25 @@ final class AppModel {
     func refresh() async {
         guard phase == .ready else { return }
         let core = self.core
-        let snapshot = await Task.detached { () -> ([SteamApp], Bool, Set<String>, String?) in
-            let apps = core.steam.apps()
+        let snapshot = await Task.detached { () -> ([SteamApp], Bool, Set<String>, String?, Set<String>) in
+            // Mac versions from the Mac's own Steam sit beside the Windows games. Installed both ways, the
+            // Mac version is the one shown, since it runs without translation, unless the Windows one
+            // was asked for.
+            let native = core.macSteam.apps()
+            let allWindows = core.steam.apps()
+            let preferWindows = Set(core.loadState().preferWindows ?? [])
+            let installedNatively = Set(native.filter(\.isInstalled).map(\.id))
+            let windows = allWindows.filter { !installedNatively.contains($0.id) || preferWindows.contains($0.id) }
+            let shownWindows = Set(windows.map(\.id))
+            let allWindowsIDs = Set(allWindows.map(\.id))
+            let mac = native.filter { !shownWindows.contains($0.id) && ($0.isInstalled || !allWindowsIDs.contains($0.id)) }
+            let apps = (windows + mac).sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             let running = core.isSteamRunning()
-            return (apps, running, core.runningAppIDs(among: apps), core.steam.signedInUser())
+            let runningIDs = core.runningAppIDs(among: windows).union(core.macSteam.runningAppIDs(among: mac))
+            return (apps, running, runningIDs, core.steam.signedInUser(), installedNatively.intersection(allWindowsIDs))
         }.value
-        let (apps, running, runningIDs, user) = snapshot
+        let (apps, running, runningIDs, user, bothWays) = snapshot
+        gamesBothWays = bothWays
         steamRunning = running
         steamUser = user
         steamOffline = core.steam.offlineMode
@@ -272,7 +297,9 @@ final class AppModel {
         var art = await artworkService.artwork(for: apps.map(\.id))
         // Steam's own copies work with no network, like on Wi-Fi that blocks Steam's image servers.
         for app in apps {
-            if localArtwork[app.id] == nil { localArtwork[app.id] = .some(core.steam.localArtwork(app.id)) }
+            if localArtwork[app.id] == nil {
+                localArtwork[app.id] = .some(app.isNative ? core.macSteam.localArtwork(app.id) : core.steam.localArtwork(app.id))
+            }
             guard let local = localArtwork[app.id] ?? nil else { continue }
             let online = art[app.id]
             art[app.id] = SteamArtwork(name: online?.name, capsule: local.capsule ?? online?.capsule, hero: local.hero ?? online?.hero,
@@ -284,10 +311,12 @@ final class AppModel {
                  isRunning: runningIDs.contains(app.id), lastPlayed: played[app.id])
         }
         if let launching, runningIDs.contains(launching) { self.launching = nil }
-        overlay.setHotkeyActive(!runningIDs.isEmpty)
-        overlay.setClipHotkeyActive(!runningIDs.isEmpty && (autoClips || clipsRecording))
-        repairScreenRecordingOnce(gameRunning: !runningIDs.isEmpty)
-        if runningIDs.isEmpty, overlay.isVisible, !overlay.isDemo { overlay.hide() }
+        // Cellar's overlay and Clips work over games running in Cellar's engine, not over Mac versions.
+        let wineRunning = runningWineGame != nil
+        overlay.setHotkeyActive(wineRunning && inGameOverlay == .cellar)
+        overlay.setClipHotkeyActive(wineRunning && (autoClips || clipsRecording))
+        repairScreenRecordingOnce(gameRunning: wineRunning)
+        if !wineRunning || inGameOverlay != .cellar, overlay.isVisible, !overlay.isDemo { overlay.hide() }
         trackSessions(running: runningIDs)
         checkCompatibility()
         syncSpotlight()
@@ -454,6 +483,7 @@ final class AppModel {
     func play(_ game: Game, knowingItsBlocked: Bool = false) {
         // A second press while it's starting (or a held Return key) would start it twice.
         guard launching == nil, !game.isRunning else { return }
+        if game.app.isNative { return launchNative(game) }
         if !knowingItsBlocked, verdicts[game.id]?.verdict == .blocked {
             blockedPromptGame = game
             return
@@ -469,6 +499,7 @@ final class AppModel {
 
     /// Play would stop to ask something first. The question shows in the main window, so it has to be open.
     func playWillAsk(_ game: Game) -> Bool {
+        if game.app.isNative { return false }
         if verdicts[game.id]?.verdict == .blocked { return true }
         return HostCheck.isOnBattery && game.profile.backend.supportsFrameCap && game.profile.preset != .battery
             && core.loadState().skipBatteryPrompt != true
@@ -494,6 +525,48 @@ final class AppModel {
             try? core.saveState(state)
         }
         launch(game, preset: usePreset ? .battery : nil)
+    }
+
+    /// A Mac version is started by the Mac's own Steam. None of Cellar's engine is involved.
+    private func launchNative(_ game: Game) {
+        markLaunching(game.id)
+        stoppedByUser = false
+        var state = core.loadState()
+        state.lastPlayed = (state.lastPlayed ?? [:]).merging([game.id: Date()]) { $1 }
+        try? core.saveState(state)
+        openInMacSteam(MacSteam.runLink(game.id))
+    }
+
+    /// Hands a steam:// link to the Mac's Steam. (Cellar's own Steam is a Windows program inside the engine.)
+    func openInMacSteam(_ link: URL) {
+        if let steam = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.valvesoftware.steam") {
+            NSWorkspace.shared.open([link], withApplicationAt: steam, configuration: NSWorkspace.OpenConfiguration())
+        } else if !NSWorkspace.shared.open(link) {
+            launching = nil
+            alert = "Couldn't find Steam on this Mac to start the game."
+        }
+    }
+
+    /// Picks which copy of a game installed both ways Cellar shows and starts.
+    func setUseWindowsVersion(_ on: Bool, for game: Game) {
+        var state = core.loadState()
+        var list = Set(state.preferWindows ?? [])
+        if on { list.insert(game.id) } else { list.remove(game.id) }
+        state.preferWindows = list.isEmpty ? nil : list.sorted()
+        try? core.saveState(state)
+        localArtworkReset(game.id)
+        toast = on ? "\(game.name) now runs as its Windows version, in Cellar." : "\(game.name) now runs as its Mac version."
+        Task { await refresh() }
+    }
+
+    /// Stop on a running game. A Mac version is asked to quit; anything in Cellar's engine is force-quit.
+    func stop(_ game: Game) {
+        guard game.app.isNative else { return stopAll() }
+        let folder = "/steamapps/common/\(game.app.installDir.lowercased())/"
+        for app in NSWorkspace.shared.runningApplications {
+            guard let path = app.executableURL?.path.lowercased(), path.contains(folder) else { continue }
+            app.terminate()
+        }
     }
 
     private func launch(_ game: Game, preset: GamePreset? = nil) {
@@ -549,6 +622,10 @@ final class AppModel {
     func join(_ friend: SteamFriend) {
         guard let appID = friend.appID, let link = friend.joinLink else { return }
         overlay.hide()
+        if let native = games.first(where: { $0.id == appID && $0.app.isInstalled && $0.app.isNative }), let url = URL(string: link) {
+            toast = "Joining \(friend.name) in \(native.name)…"
+            return openInMacSteam(url)
+        }
         guard let game = games.first(where: { $0.id == appID && $0.app.isInstalled }) else {
             toast = "You don't have \(friend.game ?? "that game") yet. Steam will offer to install it."
             startSteam(.install(appID: appID))
@@ -614,7 +691,7 @@ final class AppModel {
         let parts = [url.host()].compactMap { $0 } + url.pathComponents.filter { $0 != "/" }
         // Any web page can open a cellar:// link, so it can only open the overlay over a running game
         // or start games already installed.
-        if parts == ["overlay"], runningGame != nil {
+        if parts == ["overlay"], runningWineGame != nil, inGameOverlay == .cellar {
             overlay.show()
             return
         }
@@ -624,6 +701,10 @@ final class AppModel {
         tab = .games
         showAllGames = false
         play(game)
+    }
+
+    private func localArtworkReset(_ id: String) {
+        localArtwork[id] = nil
     }
 
     func addToDock(_ game: Game) {
@@ -669,6 +750,17 @@ final class AppModel {
         settingsRevision += 1
         Task { await refresh() }
         if settingsGame?.id == game.id { settingsGame = games.first { $0.id == game.id } }
+    }
+
+    /// Applies to games started from now on: Steam restarts with the change the next time one starts.
+    func setInGameOverlay(_ choice: InGameOverlay) {
+        inGameOverlay = choice
+        var state = core.loadState()
+        state.inGameOverlay = choice == .steam ? nil : choice
+        try? core.saveState(state)
+        settingsRevision += 1
+        if choice != .cellar, overlay.isVisible { overlay.hide() }
+        if runningWineGame != nil { toast = "The overlay changes the next time a game starts." }
     }
 
     func setMenuBarIcon(_ on: Bool) {

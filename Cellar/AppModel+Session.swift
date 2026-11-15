@@ -17,6 +17,8 @@ extension AppModel {
 
     private func gameStarted(_ id: String) {
         sessionStarts[id] = Date()
+        // A Mac version only has its play time counted: stats and Clips come from Cellar's engine.
+        if isNative(id) { return }
         if sessionStarts.count == 1 {
             stats = []
             frameRates = []
@@ -36,6 +38,7 @@ extension AppModel {
         all[id] = stats
         state.gameStats = all
         try? core.saveState(state)
+        if isNative(id) { return }
         refreshVerdict(id)
         if seconds < CellarState.GameStats.quickExitSeconds { handleQuickExit(id) }
 

@@ -1,3 +1,15 @@
+**Cellar 3.1**
+
+Every Steam game in one place.
+
+- **Your Mac games are here too.** Games installed in the normal Mac Steam app show up beside your Windows ones, tagged "Mac version". Play and Stop work the same.
+- **Installed both ways?** Cellar runs the Mac version. Right-click the game to use the Windows version instead.
+- **Steam's overlay in games.** Shift+Tab now opens Steam's own overlay, with its chat and invites. It can stop a few games starting: if one won't start after this update, turn off "Steam overlay" in that game's settings. To go back to Cellar's overlay, or to none, use Settings, Clips and overlay, In-game overlay.
+- **Steam's Dock icon works.** Clicking it opens Steam's window instead of doing nothing.
+- **Steam can't stop listening.** After a day or so open, Steam could ignore everything Cellar asked of it. Cellar now notices and restarts Steam by itself, never while a game is running.
+
+---
+
 **Cellar 3.0.1**
 
 Fixes, mostly for things that could spoil a session.

@@ -101,13 +101,70 @@ func tempDir() throws -> URL {
         #expect(core.fingerprint(core.launchConfig(for: game), engine: engine) != plain)
     }
 
-    @Test func steamOverlayStaysOffUnlessAsked() throws {
+    @Test func steamOverlayFollowsTheSettingUnlessAGameSaysOtherwise() throws {
         let core = CellarCore(paths: CellarPaths(root: try tempDir()))
+        try core.paths.ensureLayout()
         var game = GameProfile(appId: "1")
         let wine = core.steamBottle.wine(engine: URL(fileURLWithPath: "/e"))
-        #expect(wine.environment(core.launchConfig(for: game))["WINEDLLOVERRIDES"]?.contains("gameoverlayrenderer,gameoverlayrenderer64=;") == true)
+        func overrides() -> String { wine.environment(core.launchConfig(for: game))["WINEDLLOVERRIDES"] ?? "" }
+        let on = "gameoverlayrenderer,gameoverlayrenderer64=n,b"
+        let off = "gameoverlayrenderer,gameoverlayrenderer64=;"
+        // Steam's overlay is the default.
+        #expect(overrides().contains(on))
+        game.steamOverlay = false
+        #expect(overrides().contains(off))
+        // With Cellar's overlay picked, Steam's is off unless a game asks for it.
+        game.steamOverlay = nil
+        var state = core.loadState()
+        state.inGameOverlay = .cellar
+        try core.saveState(state)
+        #expect(overrides().contains(off))
         game.steamOverlay = true
-        #expect(wine.environment(core.launchConfig(for: game))["WINEDLLOVERRIDES"]?.contains("gameoverlayrenderer,gameoverlayrenderer64=n,b") == true)
+        #expect(overrides().contains(on))
+    }
+
+    @Test func noticesWhetherSteamHeardACommand() throws {
+        let bottle = Bottle(paths: CellarPaths(root: try tempDir()), name: "steam")
+        let steam = Steam(bottle: bottle)
+        let log = steam.steamDir.appending(path: "logs/console_log.txt")
+        try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // No log, or one with no commands in it, says nothing either way.
+        #expect(steam.commandLogMark() == nil)
+        try "[1] Startup\n".write(to: log, atomically: true, encoding: .utf8)
+        #expect(steam.commandLogMark() == nil)
+        try "[1] Startup\n[2] ExecCommandLine: \"steam.exe\"\n".write(to: log, atomically: true, encoding: .utf8)
+        let mark = try #require(steam.commandLogMark())
+        // Deaf: time passes and nothing new is noted.
+        #expect(!steam.heardCommand(since: mark, timeout: 0.4))
+        let handle = try FileHandle(forWritingTo: log)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("[3] ExecCommandLine: \"steam.exe\" steam://open/main\n".utf8))
+        try handle.close()
+        #expect(steam.heardCommand(since: mark, timeout: 0.4))
+    }
+
+    @Test func macSteamGamesAreListedAndSpottedRunning() throws {
+        let root = try tempDir()
+        let steamapps = root.appending(path: "steamapps", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: steamapps, withIntermediateDirectories: true)
+        let manifest = """
+        "AppState"
+        {
+        \t"appid"\t\t"1478500"
+        \t"name"\t\t"Big Walk"
+        \t"StateFlags"\t\t"4"
+        \t"installdir"\t\t"Big Walk"
+        }
+        """
+        try manifest.write(to: steamapps.appending(path: "appmanifest_1478500.acf"), atomically: true, encoding: .utf8)
+        let apps = MacSteam(steamDir: root).apps()
+        #expect(apps.map(\.name) == ["Big Walk"])
+        #expect(apps.first?.isNative == true)
+        #expect(apps.first?.isInstalled == true)
+        let game = "/Users/x/Library/Application Support/Steam/steamapps/common/Big Walk/Big Walk.app/Contents/MacOS/Big Walk"
+        #expect(MacSteam.appIDs(apps, runningFrom: ["/usr/bin/true", game]) == ["1478500"])
+        #expect(MacSteam.appIDs(apps, runningFrom: ["/Applications/Steam.app/Contents/MacOS/steam_osx"]).isEmpty)
+        #expect(MacSteam.runLink("1478500").absoluteString == "steam://rungameid/1478500")
     }
 }
 

@@ -86,7 +86,7 @@ struct TopBar: View {
             Color.clear
                 .contentShape(Rectangle())
                 .gesture(WindowDragGesture())
-            if model.runningGame != nil || model.launching != nil {
+            if model.runningWineGame != nil || (model.launching != nil && !model.isNative(model.launching)) {
                 Button { model.stopAll() } label: { Label("Force Quit", systemImage: "stop.fill") }
                     .buttonStyle(GlassButtonStyle())
                     .help("Force-quit Steam and every game (⇧⌘K)")
@@ -231,6 +231,14 @@ struct GameHeading: View {
                 if let assessment = model.verdicts[game.id] {
                     VerdictButton(game: game, assessment: assessment)
                 }
+                if game.app.isNative {
+                    Text("Mac version")
+                        .font(.cellar(12.5, .bold))
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(Capsule().fill(.white.opacity(0.16)))
+                        .help("Runs from the Mac's own Steam, without Cellar's engine.")
+                }
                 if let last = game.lastPlayed {
                     Text("Played " + last.formatted(.relative(presentation: .named)))
                         .font(.cCallout)
@@ -239,8 +247,11 @@ struct GameHeading: View {
             }
             HStack(spacing: 12) {
                 PlayControl(game: game)
-                Button("Game settings") { model.settingsGame = game }
-                    .buttonStyle(GlassButtonStyle(large: true))
+                // A Mac version has nothing for Cellar to set: its options are in the game.
+                if !game.app.isNative {
+                    Button("Game settings") { model.settingsGame = game }
+                        .buttonStyle(GlassButtonStyle(large: true))
+                }
             }
         }
         .frame(maxWidth: 560, alignment: .leading)
@@ -274,7 +285,7 @@ struct PlayControl: View {
 
     var body: some View {
         if game.isRunning {
-            Button { model.stopAll() } label: { Label("Stop", systemImage: "stop.fill").frame(minWidth: 90) }
+            Button { model.stop(game) } label: { Label("Stop", systemImage: "stop.fill").frame(minWidth: 90) }
                 .buttonStyle(GlassButtonStyle(large: true))
         } else if model.launching == game.id {
             HStack(spacing: 10) {
@@ -510,7 +521,7 @@ struct LibraryCard: View {
                 }
                 .scaleEffect(hovering ? 1.02 : 1)
             Text(game.name).font(.cHeadline).lineLimit(1)
-            Text(game.isRunning ? "Running" : (model.verdicts[game.id]?.verdict.title ?? " "))
+            Text(game.isRunning ? "Running" : game.app.isNative ? "Mac version" : (model.verdicts[game.id]?.verdict.title ?? " "))
                 .font(.cCaption)
                 .foregroundStyle(game.isRunning ? Theme.positive : Theme.secondaryText)
         }
@@ -522,8 +533,15 @@ struct LibraryCard: View {
         .onHover { h in withAnimation(.snappy(duration: 0.18)) { hovering = h } }
         .contextMenu {
             Button("Play") { model.play(game) }
-            Button("Game Settings…") { model.settingsGame = game }
-            Toggle("Retina", isOn: Binding(get: { game.profile.retina ?? false }, set: { model.setRetina($0, for: game) }))
+            if !game.app.isNative {
+                Button("Game Settings…") { model.settingsGame = game }
+                Toggle("Retina", isOn: Binding(get: { game.profile.retina ?? false }, set: { model.setRetina($0, for: game) }))
+            }
+            if model.gamesBothWays.contains(game.id) {
+                Button(game.app.isNative ? "Use the Windows Version" : "Use the Mac Version") {
+                    model.setUseWindowsVersion(game.app.isNative, for: game)
+                }
+            }
             Button("Add to Dock") { model.addToDock(game) }
             Button("Show in Finder") { model.showInFinder(game) }
             Button("Store Page") { model.openStorePage(game) }

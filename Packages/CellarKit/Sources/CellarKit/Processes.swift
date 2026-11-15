@@ -37,6 +37,21 @@ public enum ProcessSnapshot {
         return result
     }
 
+    /// Where every running program's file is. For spotting Mac games, which aren't Wine processes.
+    public static func executablePaths() -> [String] {
+        var count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(count) + 64)
+        count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        var result: [String] = []
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        for pid in pids.prefix(Int(max(count, 0))) where pid > 0 {
+            guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { continue }
+            result.append(String(cString: buffer))
+        }
+        return result
+    }
+
     /// The engine folder a `winetemp-` loader link belongs to, or "" for anything else.
     static func engineOwning(_ executable: String) -> String {
         guard executable.contains("/winetemp-") else { return "" }

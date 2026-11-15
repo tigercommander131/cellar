@@ -47,7 +47,7 @@ struct CellarApp: App {
                     .keyboardShortcut("s", modifiers: [.command, .shift])
                     .disabled(model.phase != .ready)
                 Button("Show Overlay") { model.overlay.toggle() }
-                    .disabled(model.runningGame == nil)
+                    .disabled(model.runningWineGame == nil || model.inGameOverlay != .cellar)
                 Button("Save Clip") { model.saveClip() }
                     .disabled(!model.clipsRecording)
                 Button("Force Quit All Games") { model.stopAll() }

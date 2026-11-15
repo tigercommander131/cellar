@@ -1,7 +1,8 @@
 import Darwin
 import Foundation
 
-/// A game Steam knows about in the bottle, from its `appmanifest_<id>.acf`.
+/// A game Steam knows about, from its `appmanifest_<id>.acf`: in the bottle's Windows Steam, or in the
+/// ordinary Mac Steam when `isNative` is set.
 public struct SteamApp: Sendable, Equatable, Identifiable, Codable {
     public var id: String
     public var name: String
@@ -11,6 +12,12 @@ public struct SteamApp: Sendable, Equatable, Identifiable, Codable {
     public var sizeOnDisk: Int64
     public var bytesToDownload: Int64
     public var bytesDownloaded: Int64
+    /// A Mac version, installed by the Mac's own Steam. It runs without Cellar's engine.
+    public var isNative = false
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, installDir, libraryPath, stateFlags, sizeOnDisk, bytesToDownload, bytesDownloaded
+    }
 
     public var isInstalled: Bool { stateFlags & 4 != 0 }
     public var isUpdating: Bool { stateFlags & (2 | 1024) != 0 }
@@ -107,9 +114,14 @@ public struct Steam: Sendable {
     }
 
     public func apps() -> [SteamApp] {
+        Self.apps(inLibraries: libraryFolders())
+    }
+
+    /// Every app with a manifest in these `steamapps` folders, tools left out, by name.
+    static func apps(inLibraries folders: [URL], native: Bool = false) -> [SteamApp] {
         let fm = FileManager.default
         var result: [SteamApp] = []
-        for folder in libraryFolders() {
+        for folder in folders {
             guard let files = try? fm.contentsOfDirectory(atPath: folder.path) else { continue }
             for file in files where file.hasPrefix("appmanifest_") && file.hasSuffix(".acf") {
                 guard let vdf = try? VDF.parse(contentsOf: folder.appending(path: file)),
@@ -122,7 +134,8 @@ public struct Steam: Sendable {
                     stateFlags: Int(state["StateFlags"]?.string ?? "") ?? 0,
                     sizeOnDisk: Int64(state["SizeOnDisk"]?.string ?? "") ?? 0,
                     bytesToDownload: Int64(state["BytesToDownload"]?.string ?? "") ?? 0,
-                    bytesDownloaded: Int64(state["BytesDownloaded"]?.string ?? "") ?? 0
+                    bytesDownloaded: Int64(state["BytesDownloaded"]?.string ?? "") ?? 0,
+                    isNative: native
                 ))
             }
         }
@@ -133,6 +146,10 @@ public struct Steam: Sendable {
 
     /// Art from Steam's own cache, which works with no network. nil for anything it hasn't saved.
     public func localArtwork(_ appID: String) -> SteamArtwork? {
+        Self.localArtwork(in: steamDir, appID: appID)
+    }
+
+    static func localArtwork(in steamDir: URL, appID: String) -> SteamArtwork? {
         let folder = steamDir.appending(path: "appcache/librarycache/\(appID)", directoryHint: .isDirectory)
         guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
         var art = SteamArtwork()
@@ -222,6 +239,42 @@ public struct Steam: Sendable {
         return URL(fileURLWithPath: normal)
     }
 
+    // MARK: Is Steam listening?
+
+    var consoleLog: URL { steamDir.appending(path: "logs/console_log.txt") }
+    static let commandMarker = "ExecCommandLine:"
+
+    /// Where Steam's log ends now, to see what it writes next. nil when the log gives nothing to go on
+    /// (it's missing, or Steam has stopped noting commands in it), so nothing is read into silence.
+    public func commandLogMark() -> UInt64? {
+        guard let handle = try? FileHandle(forReadingFrom: consoleLog) else { return nil }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        try? handle.seek(toOffset: size > 400_000 ? size - 400_000 : 0)
+        let tail = String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
+        return tail.contains(Self.commandMarker) ? size : nil
+    }
+
+    /// A running Steam notes every command handed to it. One that has stopped listening (seen after a
+    /// day running, across sleep) notes nothing: then Play and every Steam page silently do nothing.
+    public func heardCommand(since mark: UInt64, timeout: TimeInterval = 12) -> Bool {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            if Self.logHasCommand(consoleLog, after: mark) { return true }
+            Thread.sleep(forTimeInterval: 0.3)
+        }
+        return false
+    }
+
+    static func logHasCommand(_ log: URL, after mark: UInt64) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: log) else { return false }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        // A file smaller than the mark is a new log: read all of it.
+        try? handle.seek(toOffset: size >= mark ? mark : 0)
+        return String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self).contains(commandMarker)
+    }
+
     // MARK: Status from Steam's own logs
 
     /// True once Steam has finished starting up this session.
@@ -252,5 +305,56 @@ public struct Steam: Sendable {
         if !FileManager.default.fileExists(atPath: file.path) {
             try? appID.write(to: file, atomically: true, encoding: .utf8)
         }
+    }
+}
+
+/// The Mac's own Steam, if it's installed. Its games are Mac versions: they run by themselves, with
+/// no Wine and none of Cellar's engine, so Cellar only lists them and asks Steam to start them.
+public struct MacSteam: Sendable {
+    public let steamDir: URL
+
+    public init(steamDir: URL = FileManager.default.homeDirectoryForCurrentUser
+        .appending(path: "Library/Application Support/Steam", directoryHint: .isDirectory)) {
+        self.steamDir = steamDir
+    }
+
+    public func libraryFolders() -> [URL] {
+        var folders = [steamDir.appending(path: "steamapps", directoryHint: .isDirectory)]
+        if let vdf = try? VDF.parse(contentsOf: steamDir.appending(path: "steamapps/libraryfolders.vdf")), let root = vdf["libraryfolders"] {
+            for (_, entry) in root.pairs {
+                guard let path = entry["path"]?.string else { continue }
+                let folder = URL(fileURLWithPath: path).appending(path: "steamapps", directoryHint: .isDirectory)
+                if !folders.contains(where: { $0.standardizedFileURL == folder.standardizedFileURL }) { folders.append(folder) }
+            }
+        }
+        return folders
+    }
+
+    public func apps() -> [SteamApp] {
+        Steam.apps(inLibraries: libraryFolders(), native: true)
+    }
+
+    public func localArtwork(_ appID: String) -> SteamArtwork? {
+        Steam.localArtwork(in: steamDir, appID: appID)
+    }
+
+    /// The link that makes Steam start a game.
+    public static func runLink(_ appID: String) -> URL {
+        URL(string: "steam://rungameid/\(appID)")!
+    }
+
+    /// Which of `apps` have a program running from their install folder, given the paths of running programs.
+    public static func appIDs(_ apps: [SteamApp], runningFrom executables: [String]) -> Set<String> {
+        let lowered = executables.map { $0.lowercased() }
+        return Set(apps.filter { app in
+            guard !app.installDir.isEmpty else { return false }
+            let folder = "/steamapps/common/\(app.installDir.lowercased())/"
+            return lowered.contains { $0.contains(folder) }
+        }.map(\.id))
+    }
+
+    public func runningAppIDs(among apps: [SteamApp]) -> Set<String> {
+        guard !apps.isEmpty else { return [] }
+        return Self.appIDs(apps, runningFrom: ProcessSnapshot.executablePaths())
     }
 }

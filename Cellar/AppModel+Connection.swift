@@ -1,3 +1,4 @@
+import AppKit
 import CellarKit
 import Foundation
 import Network
@@ -221,6 +222,55 @@ extension AppModel {
 
     func openSteamPage(_ page: SteamPage) {
         startSteam(.url(page.rawValue))
+    }
+
+    // MARK: Steam's own Dock icon
+
+    /// Steam is kept closed during games to save power, but its helper program still has a Dock icon,
+    /// and with no window to show, clicking it did nothing. Now a click opens Steam's window.
+    func watchSteamDockIcon() {
+        let center = NSWorkspace.shared.notificationCenter
+        let key = NSWorkspace.applicationUserInfoKey
+        center.addObserver(forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let pid = (note.userInfo?[key] as? NSRunningApplication)?.processIdentifier else { return }
+            Task { @MainActor in self?.lastDeactivatedPID = pid }
+        }
+        center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let app = note.userInfo?[key] as? NSRunningApplication, app.localizedName?.lowercased() == "steamwebhelper.exe" else { return }
+            let pid = app.processIdentifier
+            Task { @MainActor in self?.steamIconClicked(pid: pid) }
+        }
+    }
+
+    private func steamIconClicked(pid: pid_t) {
+        // Not while Steam is still starting or about to restart, and not twice for one click.
+        guard phase == .ready, launching == nil, !switchingConnection, !installingPack,
+              Date().timeIntervalSince(steamWindowOpened ?? .distantPast) > 8,
+              let started = core.loadState().steamSession?.started, Date().timeIntervalSince(started) > 30 else { return }
+        let previous = lastDeactivatedPID
+        let core = self.core
+        Task {
+            let shouldOpen = await Task.detached { () -> Bool in
+                let ours = core.runningProcesses()
+                guard ours.contains(where: { $0.pid == pid }) else { return false }
+                // Focus that lands on Steam because a game just closed isn't a click on its icon.
+                if let previous {
+                    if ours.contains(where: { $0.pid == previous }) { return false }
+                    if NSRunningApplication(processIdentifier: previous) == nil { return false }
+                }
+                // A window already on screen means Steam is open: macOS has brought it forward.
+                let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+                return !windows.contains { window in
+                    guard (window[kCGWindowOwnerPID as String] as? Int).map({ pid_t($0) }) == pid,
+                          (window[kCGWindowLayer as String] as? Int) == 0,
+                          let bounds = window[kCGWindowBounds as String] as? [String: Any] else { return false }
+                    return (bounds["Width"] as? Double ?? 0) > 300 && (bounds["Height"] as? Double ?? 0) > 200
+                }
+            }.value
+            guard shouldOpen, launching == nil, !switchingConnection else { return }
+            steamWindowOpened = Date()
+            startSteam(.url("steam://open/main"))
+        }
     }
 
     func restartSteam() {

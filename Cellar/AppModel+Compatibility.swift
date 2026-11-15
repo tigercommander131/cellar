@@ -5,7 +5,8 @@ import Foundation
 /// Will It Run: a verdict for each installed game, kept current as the library and its history change.
 extension AppModel {
     func checkCompatibility() {
-        let unchecked = installedGames.filter { compatibilityFacts[$0.id] == nil }
+        // A Mac version needs no verdict: it isn't run through Cellar's engine.
+        let unchecked = installedGames.filter { compatibilityFacts[$0.id] == nil && !$0.app.isNative }
         guard !unchecked.isEmpty, compatibilityTask == nil else { return }
         compatibilityTask = Task { [weak self] in
             for game in unchecked {

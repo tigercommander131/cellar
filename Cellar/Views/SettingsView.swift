@@ -109,6 +109,7 @@ struct SettingsScreen: View {
 
     private var clips: some View {
         let seconds = model.clipSeconds
+        let choice = model.inGameOverlay
         return Group {
             ToggleRow("Turn Clips on with every game", "Option+C saves a clip. Uses a little extra heat and battery, and stops when the game closes.", isOn: model.autoClips) { model.setAutoClips($0) }
             SettingRow("Save the last", "How far back Option+C goes.") {
@@ -122,12 +123,30 @@ struct SettingsScreen: View {
             SettingRow("Saved clips", "Watch, trim and share them in Clips. The files are in Movies › Cellar Clips.") {
                 Button("Show in Finder") { model.showClipsFolder() }.buttonStyle(GlassButtonStyle())
             }
-            SettingRow("Open the overlay with", "Works during a game.") {
-                Picker("Open the overlay with", selection: $hotkey) {
-                    ForEach(OverlayHotkey.allCases) { Text($0.label).tag($0.rawValue) }
+            SettingRow("In-game overlay", overlayDetail(choice)) {
+                Picker("In-game overlay", selection: Binding(get: { choice }, set: { model.setInGameOverlay($0) })) {
+                    Text("Steam's").tag(InGameOverlay.steam)
+                    Text("Cellar's").tag(InGameOverlay.cellar)
+                    Text("None").tag(InGameOverlay.off)
                 }
                 .labelsHidden().fixedSize()
             }
+            if choice == .cellar {
+                SettingRow("Open Cellar's overlay with", "Works during a game.") {
+                    Picker("Open Cellar's overlay with", selection: $hotkey) {
+                        ForEach(OverlayHotkey.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+            }
+        }
+    }
+
+    private func overlayDetail(_ choice: InGameOverlay) -> String {
+        switch choice {
+        case .steam: "Shift+Tab opens Steam's own overlay, with its chat and invites. It can stop a few games starting: turn it off for that game in its settings. Option+C still saves clips."
+        case .cellar: "Cellar's overlay, with Friends, Clips, Music and Game tiles along the bottom."
+        case .off: "No overlay in games. Option+C still saves clips."
         }
     }
 
